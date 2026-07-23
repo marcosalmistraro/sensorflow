@@ -1,0 +1,27 @@
+# Core ML / data
+numpy>=1.26,<2.0
+pandas>=2.2,<3.0
+scikit-learn>=1.4,<2.0
+torch>=2.2,<3.0
+
+# Experiment tracking & model registry
+mlflow>=2.12,<3.0
+
+# Drift monitoring
+evidently>=0.4,<1.0
+
+# API
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.29,<1.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.3,<3.0
+
+# HTTP client (ingestion downloads)
+httpx>=0.27,<1.0
+
+# Dashboard
+streamlit>=1.35,<2.0
+plotly>=5.21,<6.0
+
+# Utilities
+python-dotenv>=1.0,<2.0
