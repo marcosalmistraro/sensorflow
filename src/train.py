@@ -27,9 +27,12 @@ import joblib
 import mlflow
 import mlflow.sklearn
 import numpy as np
+import torch
+import torch.nn as nn
 from mlflow import MlflowClient
 from mlflow.entities.model_registry import ModelVersion
 from sklearn.ensemble import IsolationForest
+from torch.utils.data import DataLoader, TensorDataset
 
 from config import Settings, get_settings
 
@@ -276,7 +279,261 @@ def run_isolation_forest(cfg: Settings | None = None) -> dict[str, Any]:
     }
 
 
+# ── LSTM Autoencoder ──────────────────────────────────────────────────────────
+
+
+class LSTMEncoder(nn.Module):
+    """Encodes a window of shape ``(batch, seq_len, n_features)`` into a
+    hidden state of shape ``(batch, hidden_size)``."""
+
+    def __init__(self, n_features: int, hidden_size: int, num_layers: int) -> None:
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Only the final hidden state is needed for the decoder seed.
+        _, (h_n, _) = self.lstm(x)
+        return h_n  # (num_layers, batch, hidden_size)
+
+
+class LSTMDecoder(nn.Module):
+    """Reconstructs a sequence from the encoder's final hidden state."""
+
+    def __init__(
+        self, n_features: int, hidden_size: int, num_layers: int, seq_len: int
+    ) -> None:
+        super().__init__()
+        self.seq_len = seq_len
+        self.lstm = nn.LSTM(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+        )
+        self.output_layer = nn.Linear(hidden_size, n_features)
+
+    def forward(self, h_n: torch.Tensor) -> torch.Tensor:
+        batch = h_n.shape[1]
+        # Start token: zeros of shape (batch, 1, n_features) — the decoder
+        # generates each step conditioned only on the encoder's hidden state.
+        decoder_input = torch.zeros(
+            batch, self.seq_len, self.output_layer.out_features, device=h_n.device
+        )
+        c_n = torch.zeros_like(h_n)
+        out, _ = self.lstm(decoder_input, (h_n, c_n))
+        return self.output_layer(out)  # (batch, seq_len, n_features)
+
+
+class LSTMAutoencoder(nn.Module):
+    """Sequence-to-sequence autoencoder for anomaly detection via reconstruction error."""
+
+    def __init__(
+        self, n_features: int, hidden_size: int, num_layers: int, seq_len: int
+    ) -> None:
+        super().__init__()
+        self.encoder = LSTMEncoder(n_features, hidden_size, num_layers)
+        self.decoder = LSTMDecoder(n_features, hidden_size, num_layers, seq_len)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h_n = self.encoder(x)
+        return self.decoder(h_n)
+
+    def reconstruction_error(self, x: torch.Tensor) -> torch.Tensor:
+        """Return per-sample MSE between input and reconstruction.
+
+        Args:
+            x: Shape ``(batch, seq_len, n_features)``.
+
+        Returns:
+            Shape ``(batch,)`` — one scalar error per window.
+        """
+        recon = self.forward(x)
+        return ((x - recon) ** 2).mean(dim=(1, 2))
+
+
+def _make_device() -> torch.device:
+    """Return CUDA device if available, otherwise CPU."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def train_lstm_autoencoder(
+    train_windows: np.ndarray,
+    val_windows: np.ndarray,
+    val_labels: np.ndarray | None,
+    cfg: Settings,
+) -> tuple[LSTMAutoencoder, float, float]:
+    """Train an LSTM Autoencoder with early stopping.
+
+    Args:
+        train_windows: Shape ``(n_train, window_size, n_features)``.
+        val_windows: Shape ``(n_val, window_size, n_features)``.
+        val_labels: Optional boolean anomaly labels aligned to *val_windows*.
+        cfg: Settings instance.
+
+    Returns:
+        Tuple of ``(model, threshold, val_separation_score)`` where *threshold*
+        is the 95th-percentile reconstruction error on training data — used at
+        inference time to decide anomaly/normal.
+    """
+    device = _make_device()
+    _, seq_len, n_features = train_windows.shape
+
+    log.info(
+        "training LSTM Autoencoder — hidden=%d layers=%d epochs=%d device=%s",
+        cfg.lstm_hidden_size,
+        cfg.lstm_num_layers,
+        cfg.lstm_epochs,
+        device,
+    )
+
+    model = LSTMAutoencoder(n_features, cfg.lstm_hidden_size, cfg.lstm_num_layers, seq_len).to(device)
+    optimiser = torch.optim.Adam(model.parameters(), lr=cfg.lstm_learning_rate)
+    criterion = nn.MSELoss()
+
+    train_tensor = torch.from_numpy(train_windows).float().to(device)
+    val_tensor = torch.from_numpy(val_windows).float().to(device)
+
+    train_loader = DataLoader(
+        TensorDataset(train_tensor),
+        batch_size=cfg.lstm_batch_size,
+        shuffle=True,
+    )
+
+    best_val_loss = float("inf")
+    patience_counter = 0
+    best_state: dict[str, torch.Tensor] = {}
+
+    for epoch in range(1, cfg.lstm_epochs + 1):
+        model.train()
+        epoch_loss = 0.0
+        for (batch,) in train_loader:
+            optimiser.zero_grad()
+            recon = model(batch)
+            loss = criterion(recon, batch)
+            loss.backward()
+            optimiser.step()
+            epoch_loss += loss.item() * len(batch)
+        epoch_loss /= len(train_tensor)
+
+        model.eval()
+        with torch.no_grad():
+            val_loss = criterion(model(val_tensor), val_tensor).item()
+
+        log.debug("epoch %d/%d — train_loss=%.5f val_loss=%.5f", epoch, cfg.lstm_epochs, epoch_loss, val_loss)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= cfg.lstm_patience:
+                log.info("early stopping at epoch %d", epoch)
+                break
+
+    model.load_state_dict(best_state)
+    model.eval()
+
+    # Reconstruction error threshold: 95th percentile on training data.
+    with torch.no_grad():
+        train_errors = model.reconstruction_error(train_tensor).cpu().numpy()
+    threshold = float(np.percentile(train_errors, cfg.lstm_reconstruction_threshold_percentile))
+    log.info("anomaly threshold (p%.0f): %.6f", cfg.lstm_reconstruction_threshold_percentile, threshold)
+
+    # Validation separation score.
+    with torch.no_grad():
+        val_errors = model.reconstruction_error(val_tensor).cpu().numpy()
+    score = separation_score(val_errors, val_labels)
+    log.info("val separation score: %.4f  val_loss: %.5f", score, best_val_loss)
+
+    return model, threshold, score
+
+
+def run_lstm_autoencoder(cfg: Settings | None = None) -> dict[str, Any]:
+    """Train an LSTM Autoencoder, log to MLflow, and promote if champion.
+
+    Args:
+        cfg: Settings instance; uses the module singleton when ``None``.
+
+    Returns:
+        Dict with keys ``run_id``, ``alias``, ``val_separation_score``,
+        ``threshold``.
+    """
+    if cfg is None:
+        cfg = get_settings()
+
+    features_dir = cfg.data_dir.parent / "features"
+    cfg.models_dir.mkdir(parents=True, exist_ok=True)
+
+    train_windows: np.ndarray = np.load(features_dir / "train_windows.npy")
+    val_windows: np.ndarray = np.load(features_dir / "val_windows.npy")
+
+    val_labels: np.ndarray | None = None
+    val_labels_path = features_dir / "val_window_labels.npy"
+    if val_labels_path.exists():
+        val_labels = np.load(val_labels_path)
+
+    _, seq_len, n_features = train_windows.shape
+
+    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
+    experiment_id = _get_or_create_experiment(cfg.mlflow_experiment_name)
+
+    with mlflow.start_run(experiment_id=experiment_id) as run:
+        mlflow.set_tag(TAG_MODEL_TYPE, "lstm_autoencoder")
+        mlflow.set_tag("smap_spacecraft", cfg.smap_spacecraft)
+
+        mlflow.log_params(
+            {
+                "hidden_size": cfg.lstm_hidden_size,
+                "num_layers": cfg.lstm_num_layers,
+                "epochs": cfg.lstm_epochs,
+                "batch_size": cfg.lstm_batch_size,
+                "learning_rate": cfg.lstm_learning_rate,
+                "patience": cfg.lstm_patience,
+                "threshold_percentile": cfg.lstm_reconstruction_threshold_percentile,
+                "window_size": seq_len,
+                "n_input_features": n_features,
+                "train_windows": train_windows.shape[0],
+                "random_seed": cfg.random_seed,
+            }
+        )
+
+        model, threshold, val_score = train_lstm_autoencoder(
+            train_windows, val_windows, val_labels, cfg
+        )
+
+        mlflow.log_metric(METRIC_SEP_SCORE, val_score)
+        mlflow.log_metric("reconstruction_threshold", threshold)
+
+        # Save model weights + threshold together so serving loads one artefact.
+        model_path = cfg.models_dir / "lstm_autoencoder.pt"
+        torch.save({"state_dict": model.state_dict(), "threshold": threshold}, model_path)
+        mlflow.log_artifact(str(model_path), artifact_path="model")
+        model_uri = f"runs:/{run.info.run_id}/model"
+
+        log.info("model saved locally → %s", model_path)
+        run_id: str = run.info.run_id
+
+    alias = maybe_promote_champion(run_id, val_score, model_uri, cfg)
+
+    return {
+        "run_id": run_id,
+        "alias": alias,
+        "val_separation_score": val_score,
+        "threshold": threshold,
+    }
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     result = run_isolation_forest()
-    log.info("done: %s", result)
+    log.info("IF done: %s", result)
+    result = run_lstm_autoencoder()
+    log.info("LSTM done: %s", result)
