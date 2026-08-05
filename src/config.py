@@ -55,14 +55,12 @@ class Settings(BaseSettings):
     # SMAP dataset                                                         #
     # ------------------------------------------------------------------ #
 
-    smap_train_url: str = Field(
-        default="https://s3-us-west-2.amazonaws.com/telemanom/data/train.pkl",
-        description="URL to the SMAP training set pickle.",
-    )
-
-    smap_test_url: str = Field(
-        default="https://s3-us-west-2.amazonaws.com/telemanom/data/test.pkl",
-        description="URL to the SMAP test set pickle.",
+    smap_base_url: str = Field(
+        default="https://s3-us-west-2.amazonaws.com/telemanom/data",
+        description=(
+            "S3 base URL for the telemanom dataset. Individual channel arrays are "
+            "fetched as {base_url}/train/{chan_id}.npy and {base_url}/test/{chan_id}.npy."
+        ),
     )
 
     smap_labels_url: str = Field(
@@ -73,10 +71,18 @@ class Settings(BaseSettings):
         description="URL to the labeled anomalies CSV.",
     )
 
-    smap_n_channels: int = Field(
-        default=54,
+    smap_spacecraft: str = Field(
+        default="SMAP",
+        description=(
+            "Spacecraft filter applied when reading labeled_anomalies.csv. "
+            "Use 'SMAP' for satellite data only, or leave blank to include MSL as well."
+        ),
+    )
+
+    smap_n_input_features: int = Field(
+        default=25,
         ge=1,
-        description="Number of telemetry channels in the SMAP dataset.",
+        description="Number of input telemetry features per channel (columns in each .npy array).",
     )
 
     # ------------------------------------------------------------------ #
