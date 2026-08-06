@@ -1,0 +1,71 @@
+services:
+
+  # ── MLflow tracking server ────────────────────────────────────────────────
+  mlflow:
+    image: python:3.12-slim
+    command: >
+      sh -c "pip install --quiet mlflow==2.12.* &&
+             mlflow server
+               --host 0.0.0.0
+               --port 5000
+               --backend-store-uri sqlite:////mlflow/mlruns.db
+               --default-artifact-root /mlflow/artifacts"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s   # pip install takes time on first run
+
+  # ── FastAPI anomaly detection service ─────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    env_file:
+      - path: .env
+        required: false       # service starts without .env; defaults from config.py apply
+    volumes:
+      - ./data:/app/data      # ingested parquet + raw channels
+      - ./models:/app/models  # scaler, IF and LSTM artefacts
+      - ./reports:/app/reports
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: on-failure
+
+  # ── Streamlit dashboard ───────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      # Dashboard talks to the API container by service name on the compose network
+      API_URL: http://api:8000
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  mlflow_data:
+    driver: local

@@ -1,0 +1,38 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# System packages needed for curl healthcheck and some Python wheels
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch CPU build first — avoids pulling the 2 GB CUDA wheel
+# that the default PyPI index serves for torch>=2.2
+RUN pip install --no-cache-dir \
+    torch==2.2.2 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Application source
+COPY src/ ./src/
+
+# Run as non-root
+RUN useradd -m -u 1000 appuser && chown -R appuser /app
+USER appuser
+
+ENV PYTHONPATH=/app/src
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -sf http://localhost:8000/health | grep -q '"status"' || exit 1
+
+CMD ["uvicorn", "serve:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--log-level", "info"]
