@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff==0.4.*
+
+      - name: Run ruff
+        run: ruff check src/ dashboard/ tests/
+
+  # ---------------------------------------------------------------------------
+
+  typecheck:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install type-check deps
+        run: |
+          pip install --quiet \
+            mypy==1.10.* \
+            pydantic==2.7.* \
+            pydantic-settings==2.3.* \
+            pandas-stubs==2.2.* \
+            types-requests
+
+      - name: Run mypy
+        run: |
+          mypy src/config.py src/ingestion.py src/features.py src/monitor.py \
+               --ignore-missing-imports \
+               --strict-optional \
+               --no-error-summary
+
+  # ---------------------------------------------------------------------------
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install PyTorch CPU
+        run: |
+          pip install --quiet \
+            torch==2.2.2 \
+            --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements-dev.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+        run: pytest tests/ -v --tb=short
+
+  # ---------------------------------------------------------------------------
+
+  docker-build:
+    name: Docker build (API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.api
+          push: false          # verify only; push happens on deploy
+          tags: sensorflow-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

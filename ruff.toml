@@ -1,0 +1,6 @@
+[lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]   # line length — not enforced
+
+[lint.per-file-ignores]
+"tests/*" = ["F401"]  # imported but unused — fixtures are used by pytest injection
