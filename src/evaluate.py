@@ -174,18 +174,18 @@ def generate_drift_report(
     Returns:
         Path to the saved HTML report.
     """
-    from evidently.metric_preset import DataDriftPreset  # lazy — not needed at import time
-    from evidently.report import Report
+    from evidently import Report  # lazy — not needed at import time
+    from evidently.presets import DataDriftPreset
 
     cfg.reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = cfg.reports_dir / "drift_report.html"
 
     report = Report(metrics=[DataDriftPreset()])
-    report.run(
+    snapshot = report.run(
         reference_data=train_df[feat_cols],
         current_data=test_df[feat_cols],
     )
-    report.save_html(str(report_path))
+    snapshot.save_html(str(report_path))
     log.info("drift report saved → %s", report_path)
     return report_path
 
@@ -240,11 +240,19 @@ def _promote_champion(
 
     if winner_run_id:
         try:
-            model_uri = f"runs:/{winner_run_id}/model"
-            version = mlflow.register_model(model_uri, cfg.mlflow_model_name)
-            client.set_registered_model_alias(cfg.mlflow_model_name, cfg.mlflow_champion_alias, version.version)
-            client.set_model_version_tag(cfg.mlflow_model_name, version.version, "model_type", winner)
-            log.info("registered v%s as '%s'", version.version, cfg.mlflow_champion_alias)
+            # IF uses mlflow.sklearn.log_model → artifact_path="model"
+            # LSTM uses log_artifact (raw .pt file) → no MLflow model format
+            # Only IF can be registered in the model registry this way.
+            if winner == "isolation_forest":
+                model_uri = f"runs:/{winner_run_id}/model"
+                version = mlflow.register_model(model_uri, cfg.mlflow_model_name)
+                client.set_registered_model_alias(cfg.mlflow_model_name, cfg.mlflow_champion_alias, version.version)
+                client.set_model_version_tag(cfg.mlflow_model_name, version.version, "model_type", winner)
+                log.info("registered v%s as '%s'", version.version, cfg.mlflow_champion_alias)
+            else:
+                # LSTM champion: tag the run, model loaded from disk by serve.py
+                client.set_tag(winner_run_id, "alias", cfg.mlflow_champion_alias)
+                log.info("LSTM champion tagged in run %s (loaded from disk by serve.py)", winner_run_id)
         except Exception as exc:
             log.warning("MLflow registry update failed (server may be offline): %s", exc)
 
@@ -332,6 +340,19 @@ def run_evaluate(cfg: Settings | None = None) -> dict[str, Any]:
                 mlflow.log_artifact(str(drift_path), artifact_path="reports")
         except Exception as exc:
             log.warning("could not log drift report to MLflow: %s", exc)
+
+    # Write eval metrics to disk so the dashboard can display them.
+    import json as _json
+    cfg.reports_dir.mkdir(parents=True, exist_ok=True)
+    eval_metrics = {
+        "isolation_forest": if_metrics,
+        "lstm": lstm_metrics,
+        "champion": champion,
+        "timestamp": pd.Timestamp.utcnow().isoformat(),
+    }
+    metrics_path = cfg.reports_dir / "eval_metrics.json"
+    metrics_path.write_text(_json.dumps(eval_metrics, indent=2), encoding="utf-8")
+    log.info("eval metrics saved → %s", metrics_path)
 
     log.info("evaluation complete — champion: %s", champion)
     return {

@@ -73,17 +73,20 @@ make ingest
 # 2. Build feature arrays
 make features
 
-# 3. Train both models, log to MLflow
-make mlflow-ui &   # optional — view runs at localhost:5000
+# 3. Start MLflow tracking server (required before training)
+#    Open a separate terminal and leave it running:
+make mlflow-ui     # localhost:5000
+
+# 4. Train both models, log to MLflow
 make train
 
-# 4. Evaluate, generate drift report, promote champion
+# 5. Evaluate, generate drift report, promote champion
 make evaluate
 
-# 5. Start the API
+# 6. Start the API (separate terminal)
 make serve         # localhost:8000/docs
 
-# 6. Start the dashboard (separate terminal)
+# 7. Start the dashboard (separate terminal)
 make dashboard     # localhost:8501
 ```
 

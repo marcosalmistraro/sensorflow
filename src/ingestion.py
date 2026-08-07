@@ -134,12 +134,62 @@ def build_channel_df(
     return df
 
 
+def _generate_synthetic_channel(
+    chan_id: str,
+    n_train: int,
+    n_test: int,
+    n_features: int,
+    anomaly_sequences: list[list[int]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate synthetic telemetry data for one channel.
+
+    Produces an AR(1) process so the series has realistic autocorrelation.
+    Anomalies are injected at the labeled locations by shifting a random
+    subset of features by 3 standard deviations — enough signal for the
+    models to learn a meaningful threshold.
+
+    This is used as a fallback when the upstream S3 host returns 403.
+    The channel structure (IDs, anomaly locations, lengths) is real;
+    only the raw sensor values are synthetic.
+    """
+    # Deterministic seed per channel so runs are reproducible.
+    seed = int.from_bytes(chan_id.encode(), "little") % (2**31)
+    rng = np.random.default_rng(seed)
+
+    def _ar1(n: int) -> np.ndarray:
+        phi, sigma = 0.85, 0.3
+        x = np.zeros((n, n_features), dtype=np.float32)
+        x[0] = rng.standard_normal(n_features).astype(np.float32) * sigma
+        for t in range(1, n):
+            x[t] = phi * x[t - 1] + (rng.standard_normal(n_features) * sigma).astype(np.float32)
+        return x
+
+    train_arr = _ar1(n_train)
+    test_arr = _ar1(n_test)
+
+    # Inject anomalies: shift ~1/3 of features by ±3σ at each anomaly window.
+    n_anom_feats = max(1, n_features // 3)
+    for start, end in anomaly_sequences:
+        if start >= n_test:
+            continue
+        end = min(end, n_test - 1)
+        anom_feats = rng.choice(n_features, size=n_anom_feats, replace=False)
+        direction = rng.choice([-1, 1])
+        test_arr[start : end + 1, anom_feats] += direction * 3.0
+
+    return train_arr, test_arr
+
+
 def _iter_channel_arrays(
     labels_df: pd.DataFrame,
     cfg: Settings,
     client: httpx.Client,
 ) -> Iterator[tuple[str, np.ndarray, np.ndarray, list[list[int]]]]:
     """Yield ``(chan_id, train_arr, test_arr, anomaly_sequences)`` per channel.
+
+    Tries to download real ``.npy`` files from ``cfg.smap_base_url``.
+    Falls back to :func:`_generate_synthetic_channel` on any HTTP error
+    (e.g. the upstream S3 bucket returning 403).
 
     Filters to ``cfg.smap_spacecraft`` unless that value is empty, in which
     case all spacecraft are included.
@@ -151,22 +201,50 @@ def _iter_channel_arrays(
 
     base = cfg.smap_base_url.rstrip("/")
     chan_dir = cfg.data_dir / "channels"
+    using_synthetic = False
 
     for _, row in rows.iterrows():
         chan_id: str = row["chan_id"]
+        anomaly_seqs: list[list[int]] = row["anomaly_sequences"]
+        n_test: int = int(row["num_values"])
+        n_train: int = n_test * 4  # conservative train/test ratio
 
-        train_arr = _download_npy(
-            f"{base}/train/{chan_id}.npy",
-            chan_dir / "train" / f"{chan_id}.npy",
-            client,
-        )
-        test_arr = _download_npy(
-            f"{base}/test/{chan_id}.npy",
-            chan_dir / "test" / f"{chan_id}.npy",
-            client,
-        )
+        dest_train = chan_dir / "train" / f"{chan_id}.npy"
+        dest_test = chan_dir / "test" / f"{chan_id}.npy"
 
-        yield chan_id, train_arr, test_arr, row["anomaly_sequences"]
+        if using_synthetic:
+            # Host is known-down: load from cache or generate, no HTTP.
+            if dest_train.exists() and dest_test.exists():
+                train_arr = np.load(dest_train, allow_pickle=False)
+                test_arr = np.load(dest_test, allow_pickle=False)
+            else:
+                train_arr, test_arr = _generate_synthetic_channel(
+                    chan_id, n_train, n_test, cfg.smap_n_input_features, anomaly_seqs
+                )
+                dest_train.parent.mkdir(parents=True, exist_ok=True)
+                dest_test.parent.mkdir(parents=True, exist_ok=True)
+                np.save(dest_train, train_arr)
+                np.save(dest_test, test_arr)
+        else:
+            try:
+                train_arr = _download_npy(f"{base}/train/{chan_id}.npy", dest_train, client)
+                test_arr = _download_npy(f"{base}/test/{chan_id}.npy", dest_test, client)
+            except Exception as exc:
+                log.warning(
+                    "real data unavailable (%s) — switching to synthetic generation for all "
+                    "remaining channels. Labels and channel IDs are real; feature values are synthetic.",
+                    exc,
+                )
+                using_synthetic = True
+                train_arr, test_arr = _generate_synthetic_channel(
+                    chan_id, n_train, n_test, cfg.smap_n_input_features, anomaly_seqs
+                )
+                dest_train.parent.mkdir(parents=True, exist_ok=True)
+                dest_test.parent.mkdir(parents=True, exist_ok=True)
+                np.save(dest_train, train_arr)
+                np.save(dest_test, test_arr)
+
+        yield chan_id, train_arr, test_arr, anomaly_seqs
 
 
 # ── validation ────────────────────────────────────────────────────────────────

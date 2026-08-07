@@ -62,6 +62,7 @@ class _ModelState:
 @dataclass
 class _ServiceMetrics:
     total_requests: int = 0
+    total_predictions: int = 0
     total_anomalies: int = 0
     score_sum: float = 0.0
     started_at: float = field(default_factory=time.time)
@@ -230,6 +231,7 @@ class PredictResponse(BaseModel):
     predictions: list[PredictionPoint]
     model_type: str
     model_alias: str
+    threshold: float
     n_readings_received: int
     n_predictions_returned: int
 
@@ -333,6 +335,7 @@ def predict(payload: PredictRequest) -> PredictResponse:
 
     n_anomalies = sum(p.is_anomaly for p in predictions)
     _metrics.total_requests += 1
+    _metrics.total_predictions += len(predictions)
     _metrics.total_anomalies += n_anomalies
     _metrics.score_sum += float(scores.mean()) if len(scores) else 0.0
 
@@ -341,6 +344,7 @@ def predict(payload: PredictRequest) -> PredictResponse:
         predictions=predictions,
         model_type=_state.model_type,
         model_alias=_state.alias,
+        threshold=threshold,
         n_readings_received=n_timesteps,
         n_predictions_returned=len(predictions),
     )
@@ -363,10 +367,11 @@ def health() -> HealthResponse:
 def metrics() -> MetricsResponse:
     """Return aggregate prediction statistics since service startup."""
     total = _metrics.total_requests
+    total_preds = _metrics.total_predictions
     return MetricsResponse(
         total_requests=total,
         total_anomalies=_metrics.total_anomalies,
-        anomaly_rate=_metrics.total_anomalies / total if total else 0.0,
+        anomaly_rate=_metrics.total_anomalies / total_preds if total_preds else 0.0,
         mean_score=_metrics.score_sum / total if total else 0.0,
         uptime_seconds=time.time() - _metrics.started_at,
     )

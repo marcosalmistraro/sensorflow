@@ -14,6 +14,7 @@ import pytest
 
 from ingestion import (
     _anomaly_mask,
+    _generate_synthetic_channel,
     build_channel_df,
     feature_columns,
     split_train_val,
@@ -205,3 +206,51 @@ def test_split_train_val_small_channel() -> None:
     train, val = split_train_val(df, val_ratio=0.2)
     for chan in df["channel_id"].unique():
         assert len(val[val["channel_id"] == chan]) >= 1
+
+
+# ── _generate_synthetic_channel ───────────────────────────────────────────────
+
+
+def test_synthetic_channel_shapes() -> None:
+    train, test = _generate_synthetic_channel("P-1", n_train=400, n_test=100, n_features=25, anomaly_sequences=[])
+    assert train.shape == (400, 25)
+    assert test.shape == (100, 25)
+
+
+def test_synthetic_channel_dtype() -> None:
+    train, test = _generate_synthetic_channel("P-1", n_train=200, n_test=50, n_features=25, anomaly_sequences=[])
+    assert train.dtype == np.float32
+    assert test.dtype == np.float32
+
+
+def test_synthetic_channel_deterministic() -> None:
+    a_train, a_test = _generate_synthetic_channel("P-1", 200, 50, 25, [[10, 20]])
+    b_train, b_test = _generate_synthetic_channel("P-1", 200, 50, 25, [[10, 20]])
+    np.testing.assert_array_equal(a_train, b_train)
+    np.testing.assert_array_equal(a_test, b_test)
+
+
+def test_synthetic_channel_different_per_channel() -> None:
+    _, test_p1 = _generate_synthetic_channel("P-1", 200, 50, 25, [])
+    _, test_s1 = _generate_synthetic_channel("S-1", 200, 50, 25, [])
+    assert not np.allclose(test_p1, test_s1)
+
+
+def test_synthetic_channel_anomaly_injected() -> None:
+    """Anomaly window should have higher mean absolute value than baseline."""
+    _, test = _generate_synthetic_channel("P-1", n_train=400, n_test=200, n_features=25, anomaly_sequences=[[50, 80]])
+    anomaly_mag = np.abs(test[50:81]).mean()
+    normal_mag = np.abs(test[100:150]).mean()
+    assert anomaly_mag > normal_mag
+
+
+def test_synthetic_channel_no_nan() -> None:
+    train, test = _generate_synthetic_channel("P-1", 200, 100, 25, [[5, 15], [60, 70]])
+    assert not np.isnan(train).any()
+    assert not np.isnan(test).any()
+
+
+def test_synthetic_channel_anomaly_clipped_to_bounds() -> None:
+    """Anomaly sequences that exceed n_test should not raise and should be clipped."""
+    train, test = _generate_synthetic_channel("P-1", 200, 50, 25, [[40, 200]])
+    assert test.shape == (50, 25)

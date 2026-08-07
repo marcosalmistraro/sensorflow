@@ -181,6 +181,16 @@ class Settings(BaseSettings):
         description="Early-stopping patience (epochs without val-loss improvement).",
     )
 
+    lstm_max_train_windows: int = Field(
+        default=200_000,
+        ge=1000,
+        description=(
+            "Maximum training windows fed to the LSTM per run. "
+            "Randomly subsampled when the dataset is larger. "
+            "Set to a very large number to use all windows."
+        ),
+    )
+
     lstm_reconstruction_threshold_percentile: float = Field(
         default=95.0,
         ge=50.0,

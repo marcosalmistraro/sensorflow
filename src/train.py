@@ -33,6 +33,7 @@ from mlflow import MlflowClient
 from mlflow.entities.model_registry import ModelVersion
 from sklearn.ensemble import IsolationForest
 from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 from config import Settings, get_settings
 
@@ -385,12 +386,20 @@ def train_lstm_autoencoder(
     device = _make_device()
     _, seq_len, n_features = train_windows.shape
 
+    # Subsample training windows to keep each epoch tractable on CPU.
+    if len(train_windows) > cfg.lstm_max_train_windows:
+        rng = np.random.default_rng(cfg.random_seed)
+        idx = rng.choice(len(train_windows), size=cfg.lstm_max_train_windows, replace=False)
+        train_windows = train_windows[idx]
+        log.info("subsampled train windows: %d → %d", len(idx), cfg.lstm_max_train_windows)
+
     log.info(
-        "training LSTM Autoencoder — hidden=%d layers=%d epochs=%d device=%s",
+        "training LSTM Autoencoder — hidden=%d layers=%d epochs=%d device=%s windows=%d",
         cfg.lstm_hidden_size,
         cfg.lstm_num_layers,
         cfg.lstm_epochs,
         device,
+        len(train_windows),
     )
 
     model = LSTMAutoencoder(n_features, cfg.lstm_hidden_size, cfg.lstm_num_layers, seq_len).to(device)
@@ -405,28 +414,53 @@ def train_lstm_autoencoder(
         batch_size=cfg.lstm_batch_size,
         shuffle=True,
     )
+    val_loader = DataLoader(
+        TensorDataset(val_tensor),
+        batch_size=cfg.lstm_batch_size,
+        shuffle=False,
+    )
 
     best_val_loss = float("inf")
     patience_counter = 0
     best_state: dict[str, torch.Tensor] = {}
+    start_epoch = 1
 
-    for epoch in range(1, cfg.lstm_epochs + 1):
+    # Resume from checkpoint if one exists.
+    ckpt_path = cfg.models_dir / "lstm_checkpoint.pt"
+    if ckpt_path.exists():
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state"])
+        optimiser.load_state_dict(ckpt["optimiser_state"])
+        best_val_loss = ckpt["best_val_loss"]
+        best_state = ckpt["best_state"]
+        patience_counter = ckpt["patience_counter"]
+        start_epoch = ckpt["epoch"] + 1
+        log.info("resumed from checkpoint — epoch %d, best_val_loss=%.5f", ckpt["epoch"], best_val_loss)
+
+    n_batches = len(train_loader)
+    log.info("batches per epoch: %d  (batch_size=%d)", n_batches, cfg.lstm_batch_size)
+
+    for epoch in range(start_epoch, cfg.lstm_epochs + 1):
         model.train()
         epoch_loss = 0.0
-        for (batch,) in train_loader:
+        pbar = tqdm(train_loader, desc=f"epoch {epoch}/{cfg.lstm_epochs}", unit="batch", leave=False)
+        for (batch,) in pbar:
             optimiser.zero_grad()
             recon = model(batch)
             loss = criterion(recon, batch)
             loss.backward()
             optimiser.step()
             epoch_loss += loss.item() * len(batch)
-        epoch_loss /= len(train_tensor)
+            pbar.set_postfix(loss=f"{loss.item():.5f}")
+        epoch_loss /= len(train_windows)
 
         model.eval()
         with torch.no_grad():
-            val_loss = criterion(model(val_tensor), val_tensor).item()
+            val_loss = sum(
+                criterion(model(b), b).item() * len(b) for (b,) in val_loader
+            ) / len(val_tensor)
 
-        log.debug("epoch %d/%d — train_loss=%.5f val_loss=%.5f", epoch, cfg.lstm_epochs, epoch_loss, val_loss)
+        log.info("epoch %d/%d — train_loss=%.5f", epoch, cfg.lstm_epochs, epoch_loss)
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -436,20 +470,48 @@ def train_lstm_autoencoder(
             patience_counter += 1
             if patience_counter >= cfg.lstm_patience:
                 log.info("early stopping at epoch %d", epoch)
+                # Save final checkpoint before breaking.
+                torch.save({
+                    "epoch": epoch,
+                    "model_state": model.state_dict(),
+                    "optimiser_state": optimiser.state_dict(),
+                    "best_val_loss": best_val_loss,
+                    "best_state": best_state,
+                    "patience_counter": patience_counter,
+                }, ckpt_path)
                 break
+
+        # Save checkpoint after every epoch.
+        torch.save({
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optimiser_state": optimiser.state_dict(),
+            "best_val_loss": best_val_loss,
+            "best_state": best_state,
+            "patience_counter": patience_counter,
+        }, ckpt_path)
+        log.info("checkpoint saved → %s", ckpt_path)
 
     model.load_state_dict(best_state)
     model.eval()
 
     # Reconstruction error threshold: 95th percentile on training data.
+    # Batched to avoid OOM on large datasets.
+    train_error_loader = DataLoader(
+        TensorDataset(train_tensor), batch_size=cfg.lstm_batch_size, shuffle=False
+    )
     with torch.no_grad():
-        train_errors = model.reconstruction_error(train_tensor).cpu().numpy()
+        train_errors = np.concatenate([
+            model.reconstruction_error(b).cpu().numpy() for (b,) in train_error_loader
+        ])
     threshold = float(np.percentile(train_errors, cfg.lstm_reconstruction_threshold_percentile))
     log.info("anomaly threshold (p%.0f): %.6f", cfg.lstm_reconstruction_threshold_percentile, threshold)
 
     # Validation separation score.
     with torch.no_grad():
-        val_errors = model.reconstruction_error(val_tensor).cpu().numpy()
+        val_errors = np.concatenate([
+            model.reconstruction_error(b).cpu().numpy() for (b,) in val_loader
+        ])
     score = separation_score(val_errors, val_labels)
     log.info("val separation score: %.4f  val_loss: %.5f", score, best_val_loss)
 
@@ -512,16 +574,33 @@ def run_lstm_autoencoder(cfg: Settings | None = None) -> dict[str, Any]:
         mlflow.log_metric(METRIC_SEP_SCORE, val_score)
         mlflow.log_metric("reconstruction_threshold", threshold)
 
-        # Save model weights + threshold together so serving loads one artefact.
+        # Save model weights + threshold to disk (serve.py loads from here).
         model_path = cfg.models_dir / "lstm_autoencoder.pt"
         torch.save({"state_dict": model.state_dict(), "threshold": threshold}, model_path)
-        mlflow.log_artifact(str(model_path), artifact_path="model")
-        model_uri = f"runs:/{run.info.run_id}/model"
-
+        mlflow.log_artifact(str(model_path))
         log.info("model saved locally → %s", model_path)
+
         run_id: str = run.info.run_id
 
-    alias = maybe_promote_champion(run_id, val_score, model_uri, cfg)
+        # Determine champion/challenger by comparing val scores.
+        # LSTM artefact is disk-based so we skip the MLflow model registry
+        # and record the alias as a run tag instead.
+        client = MlflowClient()
+        current_score = _current_champion_score(client, cfg.mlflow_model_name, cfg.mlflow_champion_alias)
+        if current_score is None or val_score > current_score:
+            alias = cfg.mlflow_champion_alias
+            log.info("new champion — score %.4f > previous %.4f", val_score, current_score or 0.0)
+        else:
+            alias = cfg.mlflow_challenger_alias
+            log.info("challenger retained — score %.4f ≤ champion %.4f", val_score, current_score)
+        mlflow.set_tag("alias", alias)
+        mlflow.set_tag("model_path", str(model_path))
+
+    # Only delete checkpoint after MLflow logging is fully complete.
+    ckpt_path = cfg.models_dir / "lstm_checkpoint.pt"
+    if ckpt_path.exists():
+        ckpt_path.unlink()
+        log.info("checkpoint removed — all artefacts saved successfully")
 
     return {
         "run_id": run_id,
