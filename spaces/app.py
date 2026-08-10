@@ -115,28 +115,40 @@ class ModelState:
 
 
 @st.cache_resource
-def load_models() -> ModelState | None:
-    scaler_path = MODELS_DIR / "scaler.joblib"
-    lstm_path = MODELS_DIR / "lstm_autoencoder.pt"
-    if_path = MODELS_DIR / "isolation_forest.joblib"
+def load_scaler() -> StandardScaler | None:
+    path = MODELS_DIR / "scaler.joblib"
+    return joblib.load(path) if path.exists() else None
 
-    if not scaler_path.exists():
+
+@st.cache_resource
+def load_lstm() -> ModelState | None:
+    scaler = load_scaler()
+    path = MODELS_DIR / "lstm_autoencoder.pt"
+    if scaler is None or not path.exists():
         return None
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    model = LSTMAutoencoder(N_FEATURES, hidden_size=64, num_layers=2, seq_len=WINDOW_SIZE)
+    model.load_state_dict(ckpt["state_dict"])
+    model.eval()
+    return ModelState("lstm_autoencoder", model, scaler, float(ckpt["threshold"]))
 
-    scaler: StandardScaler = joblib.load(scaler_path)
 
-    if lstm_path.exists():
-        ckpt = torch.load(lstm_path, map_location="cpu", weights_only=False)
-        model = LSTMAutoencoder(N_FEATURES, hidden_size=64, num_layers=2, seq_len=WINDOW_SIZE)
-        model.load_state_dict(ckpt["state_dict"])
-        model.eval()
-        return ModelState("lstm_autoencoder", model, scaler, float(ckpt["threshold"]))
+@st.cache_resource
+def load_isolation_forest() -> ModelState | None:
+    scaler = load_scaler()
+    path = MODELS_DIR / "isolation_forest.joblib"
+    if scaler is None or not path.exists():
+        return None
+    return ModelState("isolation_forest", joblib.load(path), scaler, 0.0)
 
-    if if_path.exists():
-        model = joblib.load(if_path)
-        return ModelState("isolation_forest", model, scaler, 0.0)
 
-    return None
+def available_models() -> dict[str, ModelState]:
+    out = {}
+    if (m := load_lstm()) is not None:
+        out["LSTM Autoencoder"] = m
+    if (m := load_isolation_forest()) is not None:
+        out["Isolation Forest"] = m
+    return out
 
 
 # ── channel data ──────────────────────────────────────────────────────────────
@@ -265,16 +277,24 @@ def load_drift_flag() -> dict | None:
 
 st.set_page_config(page_title="SensorFlow", layout="wide")
 
-state = load_models()
+models = available_models()
 channels = load_channels()
+
+eval_data = load_eval_metrics()
+champion_key = eval_data.get("champion", "") if eval_data else ""
+champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
     st.title("SensorFlow")
     st.caption("NASA SMAP anomaly detection")
     st.divider()
-    if state:
-        st.metric("Model", state.model_type.replace("_", " ").title())
-        st.metric("Threshold", f"{state.threshold:.4f}")
+    if models:
+        best_label = champion_label if champion_label in models else next(iter(models))
+        best = models[best_label]
+        st.markdown("**Best-performing model**")
+        st.markdown(best_label)
+        st.markdown("**Threshold**")
+        st.markdown(f"`{best.threshold:.4f}`")
     else:
         st.error("No model found in models/")
 
@@ -290,6 +310,8 @@ with tab_predict:
         else:
             st.warning("labeled_anomalies.csv not found.")
             chan_id = None
+        model_label = st.selectbox("Model", list(models.keys()), disabled=not models)
+        state = models.get(model_label)
         predict_btn = st.button("Predict", disabled=(chan_id is None or state is None),
                                 use_container_width=True)
 
@@ -346,15 +368,20 @@ with tab_analysis:
         frac = flag["drift_fraction"] * 100
         n_drifted = flag["drifted_features"]
         total = flag["total_features"]
-        banner_col, meta_col = st.columns([2, 1])
-        with banner_col:
-            if flag["retrain_required"]:
-                st.error(f"Retraining required — {n_drifted}/{total} features drifted ({frac:.1f}%)")
-            else:
-                st.success(f"No retraining needed — {n_drifted}/{total} features drifted ({frac:.1f}%)")
-        with meta_col:
-            st.caption(f"Last checked: {flag.get('timestamp', '—')}")
-            st.caption(f"Threshold: {flag['drift_fraction_threshold'] * 100:.0f}% of features")
+        if flag["retrain_required"]:
+            st.warning(f"{n_drifted}/{total} features drifted ({frac:.1f}%) — retraining suggested")
+        else:
+            st.success(f"{n_drifted}/{total} features drifted ({frac:.1f}%) — no retraining needed")
+        st.caption(
+            f"Last checked: {flag.get('timestamp', '—')} · "
+            f"Trigger threshold: >{flag['drift_fraction_threshold'] * 100:.0f}% of features"
+        )
+        st.caption(
+            "Note: drift is measured between the training distribution and the synthetic test data. "
+            "Because synthetic channels are generated independently via AR(1), the distributions will "
+            "always differ slightly — a high drift fraction here is expected and does not reflect "
+            "real sensor degradation."
+        )
 
         per_feature = flag.get("per_feature", {})
         if per_feature:
