@@ -288,9 +288,13 @@ with st.sidebar:
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
         best = models[best_label]
-        st.caption("Champion selected by highest F1 on the SMAP test set.")
+        st.markdown("**Best-performing model**")
+        st.caption(
+            "Both Isolation Forest and LSTM Autoencoder were trained and evaluated "
+            "on the SMAP test set. The one with the highest F1 score is used by default "
+            "when you open the Predict tab."
+        )
         with st.container(border=True):
-            st.markdown("**Best-performing model**")
             st.markdown(best_label)
             st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
     else:
