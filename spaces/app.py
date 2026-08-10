@@ -285,11 +285,10 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
-    st.markdown("### SensorFlow")
-    st.divider()
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
         best = models[best_label]
+        st.caption("Champion selected by highest F1 on the SMAP test set.")
         with st.container(border=True):
             st.markdown("**Best-performing model**")
             st.markdown(best_label)
