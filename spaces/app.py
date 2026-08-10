@@ -285,7 +285,7 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
-    st.markdown("### 📡 SensorFlow")
+    st.markdown("### SensorFlow")
     st.divider()
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
@@ -305,9 +305,8 @@ st.markdown(
     "score channels with an LSTM Autoencoder or Isolation Forest, "
     "review model evaluation metrics, and monitor feature drift."
 )
-st.divider()
 
-tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Analyze", "Data Sources"])
+tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Evaluate", "Data Sources"])
 
 # ── predict tab ───────────────────────────────────────────────────────────────
 
