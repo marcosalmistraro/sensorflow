@@ -275,7 +275,7 @@ def load_drift_flag() -> dict | None:
 
 # ── page ──────────────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="SensorFlow", layout="wide")
+st.set_page_config(page_title="SensorFlow", page_icon="📡", layout="wide")
 
 models = available_models()
 channels = load_channels()
@@ -285,20 +285,25 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
-    st.title("SensorFlow")
-    st.caption("NASA SMAP anomaly detection")
+    st.title("📡 SensorFlow")
+    st.markdown(
+        "Anomaly detection for NASA SMAP satellite telemetry. "
+        "Select a channel in **Predict** to score it with an LSTM or Isolation Forest model. "
+        "Visit **Analyze** for evaluation metrics and drift monitoring. "
+        "See **Data Sources** for details on the dataset and the synthetic fallback."
+    )
     st.divider()
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
         best = models[best_label]
-        st.markdown("**Best-performing model**")
-        st.markdown(best_label)
-        st.markdown("**Threshold**")
-        st.markdown(f"`{best.threshold:.4f}`")
+        with st.container(border=True):
+            st.markdown("**Best-performing model**")
+            st.markdown(best_label)
+            st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
     else:
         st.error("No model found in models/")
 
-tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Analysis", "Data Source"])
+tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Analyze", "Data Sources"])
 
 # ── predict tab ───────────────────────────────────────────────────────────────
 
