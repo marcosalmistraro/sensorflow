@@ -21,9 +21,11 @@ venv/
 env/
 
 # Data & model artefacts (tracked separately or too large for git)
-data/raw/
-models/
+data/
 reports/
+
+# Model checkpoints (ephemeral training artefacts)
+models/lstm_checkpoint.pt
 
 # MLflow
 mlruns/
