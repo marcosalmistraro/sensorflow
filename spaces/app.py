@@ -309,7 +309,7 @@ st.markdown(
     "review model evaluation metrics, and monitor feature drift."
 )
 
-tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Evaluate", "Data Sources"])
+tab_predict, tab_analysis, tab_datasource, tab_arch = st.tabs(["Predict", "Evaluate", "Data Sources", "Architecture"])
 
 # ── predict tab ───────────────────────────────────────────────────────────────
 
@@ -466,3 +466,130 @@ labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evalu
 
 **Reference:** Hundman et al., *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*, KDD 2018.
     """)
+
+# ── architecture tab ──────────────────────────────────────────────────────────
+
+with tab_arch:
+    st.subheader("System Architecture")
+    st.markdown(
+        "SensorFlow is split into two phases: an offline training pipeline that builds and "
+        "evaluates models, and an online inference pipeline that scores telemetry channels in real time."
+    )
+
+    # ── diagram ───────────────────────────────────────────────────────────────
+
+    st.markdown("##### Offline — ingestion & training")
+    off1, off2, off3, off4, off5 = st.columns(5)
+    _box = "background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 6px;text-align:center;font-size:0.82rem;"
+    _arr = "<div style='text-align:center;font-size:1.2rem;padding-top:18px;'>→</div>"
+    with off1:
+        st.markdown(f"<div style='{_box}'><b>NASA SMAP</b><br><span style='color:#64748b'>S3 / synthetic fallback</span></div>", unsafe_allow_html=True)
+    with off2:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Ingestion</b><br><span style='color:#64748b'>per-channel .npy arrays</span></div>", unsafe_allow_html=True)
+    with off3:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Feature engineering</b><br><span style='color:#64748b'>lag features · sliding windows (64 steps)</span></div>", unsafe_allow_html=True)
+    with off4:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Training</b><br><span style='color:#64748b'>Isolation Forest · LSTM Autoencoder</span></div>", unsafe_allow_html=True)
+    with off5:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Evaluate & select</b><br><span style='color:#64748b'>F1 · AUROC · champion promotion</span></div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("##### Online — prediction")
+    on1, on2, on3, on4, on5 = st.columns(5)
+    with on1:
+        st.markdown(f"<div style='{_box}'><b>Channel selector</b><br><span style='color:#64748b'>82 SMAP channels</span></div>", unsafe_allow_html=True)
+    with on2:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>AR(1) generator</b><br><span style='color:#64748b'>φ=0.85 · σ=0.3 · anomaly injection</span></div>", unsafe_allow_html=True)
+    with on3:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>StandardScaler</b><br><span style='color:#64748b'>fitted on training split</span></div>", unsafe_allow_html=True)
+    with on4:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Model inference</b><br><span style='color:#64748b'>IF decision score · LSTM reconstruction error</span></div>", unsafe_allow_html=True)
+    with on5:
+        st.markdown(_arr, unsafe_allow_html=True)
+        st.markdown(f"<div style='{_box}'><b>Anomaly scores</b><br><span style='color:#64748b'>threshold · signal plot · score plot</span></div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── component cards ───────────────────────────────────────────────────────
+
+    st.markdown("##### Components")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        with st.container(border=True):
+            st.markdown("**Data ingestion**")
+            st.markdown(
+                "Raw telemetry is sourced from the NASA SMAP dataset (Hundman et al., 2018). "
+                "Each channel is a separate time series with 25 sensor features. "
+                "When the S3 bucket is unreachable, an AR(1) synthetic process (φ=0.85, σ=0.3) "
+                "generates structurally equivalent data with anomalies injected at the real label "
+                "locations by shifting ~⅓ of features by ±3σ."
+            )
+        with st.container(border=True):
+            st.markdown("**Feature engineering**")
+            st.markdown(
+                "Two feature representations are built from the raw arrays. "
+                "For Isolation Forest: each timestep is expanded with 5 lag columns per feature, "
+                "giving a flat vector of 150 dimensions. "
+                "For LSTM: a sliding window of 64 timesteps produces 3-D tensors of shape "
+                "(windows, 64, 25). Both representations are normalised with a StandardScaler "
+                "fitted on the training split only."
+            )
+        with st.container(border=True):
+            st.markdown("**Isolation Forest**")
+            st.markdown(
+                "An ensemble of 100 isolation trees is trained on the flat lag-feature matrix. "
+                "Each tree randomly selects a feature and a split value; points that are isolated "
+                "quickly (short average path length) are scored as anomalous. "
+                "The anomaly score is the negated decision function so that higher always means "
+                "more anomalous, consistent with the LSTM scoring convention."
+            )
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("**LSTM Autoencoder**")
+            st.markdown(
+                "A 2-layer LSTM encoder compresses each 64-step window into a hidden state; "
+                "a symmetric 2-layer LSTM decoder reconstructs the original sequence. "
+                "The model is trained to minimise mean squared reconstruction error on normal "
+                "windows only. At inference time, anomaly score = mean squared error over the "
+                "window — high error means the model could not reconstruct the local pattern, "
+                "indicating unusual dynamics. The detection threshold is the 95th percentile of "
+                "reconstruction errors on the training set."
+            )
+        with st.container(border=True):
+            st.markdown("**Champion selection**")
+            st.markdown(
+                "After training, both models are evaluated on the held-out test split using "
+                "F1, precision, recall, AUROC, and AUPRC. The model with the higher F1 is "
+                "designated champion and loaded by default in the Predict tab. "
+                "Evaluation results are persisted to reports/eval_metrics.json and displayed "
+                "in the Evaluate tab."
+            )
+        with st.container(border=True):
+            st.markdown("**Drift monitoring**")
+            st.markdown(
+                "A Kolmogorov-Smirnov test is run per feature between the training distribution "
+                "and a reference sample of the test data. If more than 50% of features drift "
+                "significantly (p < 0.05), a retraining flag is raised. "
+                "Because synthetic train and test channels are generated independently, "
+                "drift is expected to be high in this deployment and does not indicate "
+                "real sensor degradation."
+            )
+        with st.container(border=True):
+            st.markdown("**Deployment**")
+            st.markdown(
+                "The app runs on Streamlit Community Cloud (free tier). "
+                "Trained model weights are committed directly to the GitHub repository "
+                "(IF ~2.5 MB, LSTM ~455 KB) so no external model store is needed at startup. "
+                "The FastAPI serving layer and MLflow experiment tracker run locally; "
+                "this Space loads models directly from disk with no API dependency."
+            )
