@@ -329,7 +329,7 @@ with tab_analysis:
             if not m:
                 continue
             is_champ = champion == key or champion == key.replace("_", " ")
-            with st.expander(f"{'🏆 ' if is_champ else ''}{label}", expanded=is_champ):
+            with st.expander(f"[champion] {label}" if is_champ else label, expanded=is_champ):
                 c1, c2, c3, c4, c5 = st.columns(5)
                 c1.metric("F1", f"{m.get('f1', 0):.4f}")
                 c2.metric("Precision", f"{m.get('precision', 0):.4f}")

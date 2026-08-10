@@ -425,6 +425,8 @@ def train_lstm_autoencoder(
     best_state: dict[str, torch.Tensor] = {}
     start_epoch = 1
 
+    cfg.models_dir.mkdir(parents=True, exist_ok=True)
+
     # Resume from checkpoint if one exists.
     ckpt_path = cfg.models_dir / "lstm_checkpoint.pt"
     if ckpt_path.exists():
