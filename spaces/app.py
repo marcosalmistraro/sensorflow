@@ -253,7 +253,7 @@ def load_eval_metrics() -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def load_drift_flag() -> dict | None:
     path = REPORTS_DIR / "retrain_flag.json"
     if not path.exists():
@@ -346,11 +346,38 @@ with tab_analysis:
         frac = flag["drift_fraction"] * 100
         n_drifted = flag["drifted_features"]
         total = flag["total_features"]
-        if flag["retrain_required"]:
-            st.error(f"Retraining required — {n_drifted}/{total} features drifted ({frac:.1f}%)")
-        else:
-            st.success(f"No retraining needed — {n_drifted}/{total} features drifted ({frac:.1f}%)")
-        st.caption(f"Last checked: {flag.get('timestamp', '—')}")
+        banner_col, meta_col = st.columns([2, 1])
+        with banner_col:
+            if flag["retrain_required"]:
+                st.error(f"Retraining required — {n_drifted}/{total} features drifted ({frac:.1f}%)")
+            else:
+                st.success(f"No retraining needed — {n_drifted}/{total} features drifted ({frac:.1f}%)")
+        with meta_col:
+            st.caption(f"Last checked: {flag.get('timestamp', '—')}")
+            st.caption(f"Threshold: {flag['drift_fraction_threshold'] * 100:.0f}% of features")
+
+        per_feature = flag.get("per_feature", {})
+        if per_feature:
+            rows = [
+                {"Feature": feat, "KS statistic": round(v["statistic"], 4),
+                 "p-value": round(v["p_value"], 4), "Drifted": "Yes" if v["drifted"] else "No"}
+                for feat, v in per_feature.items()
+            ]
+            drift_df = pd.DataFrame(rows).sort_values("KS statistic", ascending=False)
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Per-feature KS results**")
+                st.dataframe(drift_df, use_container_width=True, hide_index=True)
+            with right:
+                drifted_only = drift_df[drift_df["Drifted"] == "Yes"]
+                if not drifted_only.empty:
+                    fig_bar = go.Figure(go.Bar(
+                        x=drifted_only["Feature"], y=drifted_only["KS statistic"],
+                        marker_color=ANOMALY_COLOR,
+                    ))
+                    fig_bar.update_layout(xaxis_title="Feature", yaxis_title="KS statistic",
+                                          margin=dict(l=20, r=20, t=20, b=40), height=300)
+                    st.plotly_chart(fig_bar, use_container_width=True)
     else:
         st.info("No drift report found.")
 
