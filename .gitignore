@@ -23,6 +23,8 @@ env/
 # Data & model artefacts (tracked separately or too large for git)
 data/
 reports/
+!spaces/reports/
+!spaces/reports/*.json
 
 # Model checkpoints (ephemeral training artefacts)
 models/lstm_checkpoint.pt
