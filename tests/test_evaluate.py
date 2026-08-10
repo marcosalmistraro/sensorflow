@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-
 from evaluate import (
     compute_metrics,
     load_lstm_autoencoder,
@@ -15,7 +14,6 @@ from evaluate import (
     score_lstm,
 )
 from train import LSTMAutoencoder
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

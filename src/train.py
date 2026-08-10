@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 import joblib
@@ -29,13 +28,12 @@ import mlflow.sklearn
 import numpy as np
 import torch
 import torch.nn as nn
+from config import Settings, get_settings
 from mlflow import MlflowClient
 from mlflow.entities.model_registry import ModelVersion
 from sklearn.ensemble import IsolationForest
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-
-from config import Settings, get_settings
 
 log = logging.getLogger(__name__)
 

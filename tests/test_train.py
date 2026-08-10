@@ -6,14 +6,12 @@ import numpy as np
 import pytest
 import torch
 from sklearn.ensemble import IsolationForest
-
 from train import (
     LSTMAutoencoder,
     separation_score,
     train_isolation_forest,
     train_lstm_autoencoder,
 )
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -163,7 +161,6 @@ def test_lstm_autoencoder_reconstruction_error_non_negative() -> None:
 
 def test_lstm_autoencoder_trained_error_less_than_untrained() -> None:
     """Reconstruction error on training data should decrease after training."""
-    rng = np.random.default_rng(0)
     # Simple sine pattern — easy to learn
     t = np.linspace(0, 4 * np.pi, 500)
     signal = np.sin(t).astype(np.float32).reshape(-1, 1)

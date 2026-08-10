@@ -17,11 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypedDict
 
-import numpy as np
 import pandas as pd
-from scipy import stats
-
 from config import Settings, get_settings
+from scipy import stats
 
 log = logging.getLogger(__name__)
 

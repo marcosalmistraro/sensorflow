@@ -10,13 +10,11 @@ import numpy as np
 import pytest
 import torch
 from fastapi.testclient import TestClient
+from features import add_lag_features
+from serve import _metrics, _ModelState, _ServiceMetrics, app
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-
-from features import add_lag_features
-from serve import _ModelState, _ServiceMetrics, app, _metrics
 from train import LSTMAutoencoder
-
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 

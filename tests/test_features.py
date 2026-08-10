@@ -5,8 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.preprocessing import StandardScaler
-
 from features import (
     add_lag_features,
     build_flat,
@@ -17,7 +15,7 @@ from features import (
     window_labels,
 )
 from ingestion import feature_columns
-
+from sklearn.preprocessing import StandardScaler
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

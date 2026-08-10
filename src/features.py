@@ -21,10 +21,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-
 from config import Settings, get_settings
 from ingestion import feature_columns
+from sklearn.preprocessing import StandardScaler
 
 log = logging.getLogger(__name__)
 

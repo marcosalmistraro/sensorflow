@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
 from ingestion import (
     _anomaly_mask,
     _generate_synthetic_channel,
@@ -20,7 +19,6 @@ from ingestion import (
     split_train_val,
     validate_split,
 )
-
 
 # ── feature_columns ───────────────────────────────────────────────────────────
 

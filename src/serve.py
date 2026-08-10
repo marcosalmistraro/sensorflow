@@ -34,13 +34,12 @@ from typing import Any
 import joblib
 import numpy as np
 import torch
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, field_validator
-from sklearn.preprocessing import StandardScaler
-
 from config import Settings, get_settings
 from evaluate import score_lstm
+from fastapi import FastAPI, HTTPException
 from features import add_lag_features, sliding_window
+from pydantic import BaseModel, Field, field_validator
+from sklearn.preprocessing import StandardScaler
 from train import LSTMAutoencoder
 
 log = logging.getLogger(__name__)

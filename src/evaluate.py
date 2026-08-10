@@ -22,6 +22,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 import torch
+from config import Settings, get_settings
 from mlflow import MlflowClient
 from sklearn.metrics import (
     average_precision_score,
@@ -30,8 +31,6 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-
-from config import Settings, get_settings
 from train import LSTMAutoencoder
 
 log = logging.getLogger(__name__)
@@ -234,7 +233,6 @@ def _promote_champion(
 
     winner = "lstm_autoencoder" if lstm_f1 >= if_f1 else "isolation_forest"
     winner_run_id = lstm_run_id if winner == "lstm_autoencoder" else if_run_id
-    loser_run_id = if_run_id if winner == "lstm_autoencoder" else lstm_run_id
 
     log.info("champion: %s (F1=%.4f) over %s (F1=%.4f)", winner, max(if_f1, lstm_f1), "the other", min(if_f1, lstm_f1))
 

@@ -22,7 +22,6 @@ from typing import Iterator
 import httpx
 import numpy as np
 import pandas as pd
-
 from config import Settings, get_settings
 
 log = logging.getLogger(__name__)
@@ -158,10 +157,13 @@ def _generate_synthetic_channel(
 
     def _ar1(n: int) -> np.ndarray:
         phi, sigma = 0.85, 0.3
-        x = np.zeros((n, n_features), dtype=np.float32)
-        x[0] = rng.standard_normal(n_features).astype(np.float32) * sigma
+        noise: np.ndarray = np.empty((n, n_features), dtype=np.float32)
+        noise[:] = rng.standard_normal((n, n_features))
+        noise *= sigma
+        x = np.empty((n, n_features), dtype=np.float32)
+        x[0] = noise[0]
         for t in range(1, n):
-            x[t] = phi * x[t - 1] + (rng.standard_normal(n_features) * sigma).astype(np.float32)
+            x[t] = phi * x[t - 1] + noise[t]
         return x
 
     train_arr = _ar1(n_train)

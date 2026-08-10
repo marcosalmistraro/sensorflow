@@ -8,15 +8,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
+from ingestion import feature_columns
 from monitor import (
     build_drift_report,
     detect_drift,
     read_flag,
     write_flag,
 )
-from ingestion import feature_columns
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
