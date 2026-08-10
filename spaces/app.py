@@ -285,13 +285,7 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
-    st.title("📡 SensorFlow")
-    st.markdown(
-        "Anomaly detection for NASA SMAP satellite telemetry. "
-        "Select a channel in **Predict** to score it with an LSTM or Isolation Forest model. "
-        "Visit **Analyze** for evaluation metrics and drift monitoring. "
-        "See **Data Sources** for details on the dataset and the synthetic fallback."
-    )
+    st.markdown("### 📡 SensorFlow")
     st.divider()
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
@@ -302,6 +296,16 @@ with st.sidebar:
             st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
     else:
         st.error("No model found in models/")
+
+# ── page header (always visible) ─────────────────────────────────────────────
+
+st.title("📡 SensorFlow")
+st.markdown(
+    "Anomaly detection for NASA SMAP satellite telemetry — "
+    "score channels with an LSTM Autoencoder or Isolation Forest, "
+    "review model evaluation metrics, and monitor feature drift."
+)
+st.divider()
 
 tab_predict, tab_analysis, tab_datasource = st.tabs(["Predict", "Analyze", "Data Sources"])
 
