@@ -470,12 +470,12 @@ labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evalu
 # ── architecture tab ──────────────────────────────────────────────────────────
 
 _NODE = (
-    "display:inline-flex;flex-direction:column;align-items:center;justify-content:center;"
-    "border-radius:8px;padding:10px 14px;min-width:120px;max-width:160px;"
+    "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;"
+    "border-radius:8px;padding:10px 14px;"
     "text-align:center;font-size:0.78rem;line-height:1.35;border:1px solid rgba(0,0,0,0.08);"
 )
-_ARROW = "font-size:1.3rem;color:#94a3b8;padding:0 4px;align-self:center;"
-_ROW   = "display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;margin:8px 0;"
+_ARROW = "font-size:1.3rem;color:#94a3b8;padding:0 2px;align-self:center;flex-shrink:0;"
+_ROW   = "display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;margin:8px 0;width:100%;"
 _PHASE = (
     "border:1px dashed #94a3b8;border-radius:10px;padding:14px 16px 16px;"
     "margin-bottom:14px;"
