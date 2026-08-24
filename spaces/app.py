@@ -285,25 +285,24 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
+    st.markdown("**Best-performing model**")
+    st.caption("Champion selected by highest F1 on the SMAP test set — loaded by default in Predict.")
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
         best = models[best_label]
-        st.markdown("**Best-performing model**")
-        st.caption(
-            "Both Isolation Forest and LSTM Autoencoder were trained and evaluated "
-            "on the SMAP test set. The one with the highest F1 score is used by default "
-            "when you open the Predict tab."
-        )
         with st.container(border=True):
             st.markdown(best_label)
             st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
     else:
         st.error("No model found in models/")
+    st.divider()
+    st.markdown("**About**")
+    st.caption("Anomaly detection pipeline for NASA SMAP satellite telemetry — ingestion, training, evaluation, and drift monitoring.")
 
 # ── page header (always visible) ─────────────────────────────────────────────
 
 st.title("📡 SensorFlow")
-st.markdown(
+st.caption(
     "Anomaly detection for NASA SMAP satellite telemetry — "
     "score channels with an LSTM Autoencoder or Isolation Forest, "
     "review model evaluation metrics, and monitor feature drift."
