@@ -352,7 +352,7 @@ with tab_analysis:
     eval_data = load_eval_metrics()
     if eval_data:
         champion = eval_data.get("champion", "—")
-        st.caption(f"Champion: **{champion}** · {eval_data.get('timestamp', '—')}")
+        st.markdown(f"Champion: **{champion}** · {eval_data.get('timestamp', '—')}")
         for key, label in [("isolation_forest", "Isolation Forest"), ("lstm", "LSTM Autoencoder")]:
             m = eval_data.get(key, {})
             if not m:
@@ -391,10 +391,10 @@ with tab_analysis:
             f"Last checked: {flag.get('timestamp', '—')} · "
             f"Trigger threshold: >{flag['drift_fraction_threshold'] * 100:.0f}% of features"
         )
-        st.caption(
+        st.markdown(
             "Drift is measured between the training distribution and the synthetic test data. "
             "Because synthetic channels are generated independently via AR(1), the distributions will "
-            "always differ slightly -a high drift fraction here is expected and does not reflect "
+            "always differ slightly - a high drift fraction here is expected and does not reflect "
             "real sensor degradation."
         )
 
