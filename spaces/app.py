@@ -460,6 +460,8 @@ This deployment uses **synthetic data** generated to match the real dataset's st
 labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evaluate → monitor → serve
 ```
 
+---
+
 **Reference:** Hundman et al., *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*, KDD 2018.
     """)
 
