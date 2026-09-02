@@ -365,6 +365,13 @@ with tab_analysis:
                 c3.metric("Recall", f"{m.get('recall', 0):.4f}")
                 c4.metric("AUROC", f"{m.get('auroc', 0):.4f}")
                 c5.metric("AUPRC", f"{m.get('auprc', 0):.4f}")
+                st.caption(
+                    "**F1** - balance between catching anomalies and not crying wolf. "
+                    "**Precision** - of everything flagged, how much was actually anomalous. "
+                    "**Recall** - of all real anomalies, how many did the model catch. "
+                    "**AUROC** - overall ability to separate normal from anomalous across all thresholds (1.0 = perfect). "
+                    "**AUPRC** - same but weighted towards the anomaly class, more informative when anomalies are rare."
+                )
     else:
         st.info("No evaluation results found.")
 
