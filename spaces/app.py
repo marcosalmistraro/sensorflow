@@ -483,40 +483,44 @@ with tab_arch:
     st.graphviz_chart("""
 digraph {
     rankdir=TB
-    graph [fontname="Helvetica" bgcolor="transparent" pad="0.5" nodesep="0.4" ranksep="0.6"]
+    graph [fontname="Helvetica" bgcolor="transparent" pad="0.5" nodesep="0.4" ranksep="0.8"]
     node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2.2]
     edge  [fontname="Helvetica" fontsize=11 color="#555555"]
 
-    // ── offline row ──────────────────────────────────────────────────────────
-    off_label [label="Offline - ingestion & training" shape=plaintext fontsize=12 fontcolor="#888888"]
+    subgraph cluster_offline {
+        label="Offline - ingestion & training"
+        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
 
-    smap      [label="NASA SMAP\\nS3 / synthetic fallback"        fillcolor="#dbeafe" color="#93c5fd"]
-    ingest    [label="Ingestion\\nper-channel .npy arrays"         fillcolor="#fef9c3" color="#fcd34d"]
-    features  [label="Feature engineering\\nlag features · 64-step windows" fillcolor="#fef9c3" color="#fcd34d"]
-    training  [label="Training\\nIF · LSTM Autoencoder"            fillcolor="#ede9fe" color="#c4b5fd"]
-    evaluate  [label="Evaluate & select\\nF1 · AUROC · champion"  fillcolor="#fed7aa" color="#fb923c"]
+        smap      [label="NASA SMAP\\nS3 / synthetic fallback"        fillcolor="#dbeafe" color="#93c5fd"]
+        ingest    [label="Ingestion\\nper-channel .npy arrays"         fillcolor="#fef9c3" color="#fcd34d"]
+        features  [label="Feature engineering\\nlag · 64-step windows" fillcolor="#fef9c3" color="#fcd34d"]
+        training  [label="Training\\nIF · LSTM Autoencoder"            fillcolor="#ede9fe" color="#c4b5fd"]
+        evaluate  [label="Evaluate & select\\nF1 · AUROC · champion"  fillcolor="#fed7aa" color="#fb923c"]
 
-    { rank=same off_label smap ingest features training evaluate }
-    off_label -> smap     [style=invis]
-    smap -> ingest -> features -> training -> evaluate
+        { rank=same; smap; ingest; features; training; evaluate }
+        smap -> ingest -> features -> training -> evaluate
+    }
 
-    // ── online row ───────────────────────────────────────────────────────────
-    on_label  [label="Online - prediction" shape=plaintext fontsize=12 fontcolor="#888888"]
+    subgraph cluster_online {
+        label="Online - prediction"
+        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
 
-    channel   [label="Channel selector\\n82 SMAP channels"             fillcolor="#fee2e2" color="#fca5a5"]
-    generator [label="AR(1) generator\\nφ=0.85 · σ=0.3"               fillcolor="#dbeafe" color="#93c5fd"]
-    scaler    [label="StandardScaler\\nfitted on training split"        fillcolor="#fef9c3" color="#fcd34d"]
-    inference [label="Model inference\\nIF score · LSTM recon. error"  fillcolor="#ede9fe" color="#c4b5fd"]
-    output    [label="Anomaly scores\\nthreshold · plots"              fillcolor="#d1fae5" color="#6ee7b7"]
+        channel   [label="Channel selector\\n82 SMAP channels"             fillcolor="#fee2e2" color="#fca5a5"]
+        generator [label="AR(1) generator\\nph=0.85 · s=0.3"               fillcolor="#dbeafe" color="#93c5fd"]
+        scaler    [label="StandardScaler\\nfitted on training split"        fillcolor="#fef9c3" color="#fcd34d"]
+        inference [label="Model inference\\nIF score · LSTM recon. error"  fillcolor="#ede9fe" color="#c4b5fd"]
+        output    [label="Anomaly scores\\nthreshold · plots"              fillcolor="#d1fae5" color="#6ee7b7"]
 
-    { rank=same on_label channel generator scaler inference output }
-    on_label -> channel   [style=invis]
-    channel -> generator -> scaler -> inference -> output
+        { rank=same; channel; generator; scaler; inference; output }
+        channel -> generator -> scaler -> inference -> output
+    }
 
-    // ── force rows to stack ──────────────────────────────────────────────────
-    off_label -> on_label [style=invis]
-    smap      -> channel  [style=invis]
-    evaluate  -> output   [style=invis]
+    // Align columns between the two rows
+    smap     -> channel   [style=invis weight=10]
+    ingest   -> generator [style=invis weight=10]
+    features -> scaler    [style=invis weight=10]
+    training -> inference [style=invis weight=10]
+    evaluate -> output    [style=invis weight=10]
 }
 """, use_container_width=True)
 
