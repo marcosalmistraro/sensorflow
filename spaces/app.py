@@ -483,6 +483,7 @@ with tab_arch:
     st.graphviz_chart("""
 digraph {
     rankdir=LR
+    newrank=true
     graph [fontname="Helvetica" bgcolor="transparent" pad="0.6" nodesep="0.6" ranksep="1.1"]
     node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2]
     edge  [fontname="Helvetica" fontsize=11 color="#555555"]
@@ -512,6 +513,12 @@ digraph {
 
         channel -> generator -> scaler -> inference -> output
     }
+
+    // Force left and right edges of both clusters to align
+    { rank=same smap channel }
+    { rank=same evaluate output }
+    smap     -> channel  [style=invis weight=5]
+    evaluate -> output   [style=invis weight=5]
 }
 """, use_container_width=True)
 
