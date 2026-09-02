@@ -384,7 +384,7 @@ with tab_analysis:
             f"Trigger threshold: >{flag['drift_fraction_threshold'] * 100:.0f}% of features"
         )
         st.caption(
-            "Note: drift is measured between the training distribution and the synthetic test data. "
+            "Drift is measured between the training distribution and the synthetic test data. "
             "Because synthetic channels are generated independently via AR(1), the distributions will "
             "always differ slightly — a high drift fraction here is expected and does not reflect "
             "real sensor degradation."
@@ -412,6 +412,12 @@ with tab_analysis:
                     fig_bar.update_layout(xaxis_title="Feature", yaxis_title="KS statistic",
                                           margin=dict(l=20, r=20, t=20, b=40), height=300)
                     st.plotly_chart(fig_bar, use_container_width=True)
+                    st.caption(
+                        "KS statistics shown above are aggregated across all channels in the dataset. "
+                        "The KS test measures the maximum difference between two empirical CDFs — "
+                        "with large sample sizes even negligible distributional differences become "
+                        "statistically significant, which is why all features appear drifted here."
+                    )
     else:
         st.info("No drift report found.")
 
