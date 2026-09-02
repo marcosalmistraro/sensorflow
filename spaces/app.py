@@ -483,7 +483,7 @@ labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evalu
 
 with tab_arch:
     st.subheader("System Architecture")
-    st.caption(
+    st.markdown(
         "SensorFlow is split into two phases: an offline training pipeline that builds and "
         "evaluates models, and an online inference pipeline that scores telemetry channels in real time."
     )
