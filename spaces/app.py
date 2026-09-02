@@ -1,4 +1,4 @@
-"""SensorFlow — self-contained Streamlit app for HuggingFace Spaces.
+"""SensorFlow -self-contained Streamlit app for HuggingFace Spaces.
 
 Loads trained models directly from disk (no FastAPI required).
 Channels are generated on-the-fly using the same AR(1) synthetic process
@@ -222,7 +222,7 @@ def score_plot(timesteps, scores, flags, threshold, chan_id):
     y_max = max(float(scores.max()) if len(scores) else 1.0, threshold)
     fig.add_hline(y=threshold, line_dash="dash", line_color=THRESHOLD_COLOR,
                   annotation_text=f"threshold={threshold:.4f}", annotation_position="top right")
-    fig.update_layout(title=f"Anomaly scores — {chan_id}", xaxis_title="Timestep",
+    fig.update_layout(title=f"Anomaly scores -{chan_id}", xaxis_title="Timestep",
                       yaxis_title="Score", yaxis=dict(range=[0, y_max * 1.1]),
                       height=380, margin=dict(l=40, r=20, t=60, b=40))
     return fig
@@ -249,7 +249,7 @@ def signal_plot(readings, timesteps, flags, chan_id):
         for s, e in spans:
             fig.add_shape(type="rect", x0=s, x1=e, y0=y_min, y1=y_max,
                           fillcolor=ANOMALY_COLOR, opacity=0.15, line_width=0, layer="below")
-    fig.update_layout(title=f"Raw signal — {chan_id}", xaxis_title="Timestep",
+    fig.update_layout(title=f"Raw signal -{chan_id}", xaxis_title="Timestep",
                       yaxis_title="Value", height=300, margin=dict(l=40, r=20, t=60, b=40))
     return fig
 
@@ -286,7 +286,7 @@ champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoenco
 
 with st.sidebar:
     st.markdown("**Best-performing model**")
-    st.caption("Champion selected by highest F1 on the SMAP test set — loaded by default in Predict.")
+    st.caption("Champion selected by highest F1 on the SMAP test set -loaded by default in Predict.")
     if models:
         best_label = champion_label if champion_label in models else next(iter(models))
         best = models[best_label]
@@ -300,7 +300,7 @@ with st.sidebar:
 
 st.title("📡 SensorFlow")
 st.caption(
-    "Anomaly detection for NASA SMAP satellite telemetry — "
+    "Anomaly detection for NASA SMAP satellite telemetry -"
     "score channels with an LSTM Autoencoder or Isolation Forest, "
     "review model evaluation metrics, and monitor feature drift."
 )
@@ -333,7 +333,7 @@ with tab_predict:
     if "result" in st.session_state:
         chan_id_r, readings_r, timesteps_r, scores_r, flags_r, threshold_r = st.session_state["result"]
         n_anom = int(flags_r.sum())
-        st.subheader(f"Channel {chan_id_r} — {n_anom} anomalies in {len(scores_r)} scored windows")
+        st.subheader(f"Channel {chan_id_r} -{n_anom} anomalies in {len(scores_r)} scored windows")
         st.plotly_chart(score_plot(timesteps_r, scores_r, flags_r, threshold_r, chan_id_r),
                         use_container_width=True)
         st.plotly_chart(signal_plot(readings_r, timesteps_r, flags_r, chan_id_r),
@@ -376,9 +376,9 @@ with tab_analysis:
         n_drifted = flag["drifted_features"]
         total = flag["total_features"]
         if flag["retrain_required"]:
-            st.warning(f"{n_drifted}/{total} features drifted ({frac:.1f}%) — retraining suggested")
+            st.warning(f"{n_drifted}/{total} features drifted ({frac:.1f}%) -retraining suggested")
         else:
-            st.success(f"{n_drifted}/{total} features drifted ({frac:.1f}%) — no retraining needed")
+            st.success(f"{n_drifted}/{total} features drifted ({frac:.1f}%) -no retraining needed")
         st.caption(
             f"Last checked: {flag.get('timestamp', '—')} · "
             f"Trigger threshold: >{flag['drift_fraction_threshold'] * 100:.0f}% of features"
@@ -386,7 +386,7 @@ with tab_analysis:
         st.caption(
             "Drift is measured between the training distribution and the synthetic test data. "
             "Because synthetic channels are generated independently via AR(1), the distributions will "
-            "always differ slightly — a high drift fraction here is expected and does not reflect "
+            "always differ slightly -a high drift fraction here is expected and does not reflect "
             "real sensor degradation."
         )
 
@@ -414,7 +414,7 @@ with tab_analysis:
                     st.plotly_chart(fig_bar, use_container_width=True)
                     st.caption(
                         "KS statistics shown above are aggregated across all channels in the dataset. "
-                        "The KS test measures the maximum difference between two empirical CDFs — "
+                        "The KS test measures the maximum difference between two empirical CDFs -"
                         "with large sample sizes even negligible distributional differences become "
                         "statistically significant, which is why all features appear drifted here."
                     )
@@ -482,43 +482,41 @@ with tab_arch:
 
     st.graphviz_chart("""
 digraph {
-    rankdir=LR
-    newrank=true
-    graph [fontname="Helvetica" bgcolor="transparent" pad="0.6" nodesep="0.6" ranksep="1.1"]
-    node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2]
+    rankdir=TB
+    graph [fontname="Helvetica" bgcolor="transparent" pad="0.5" nodesep="0.4" ranksep="0.6"]
+    node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2.2]
     edge  [fontname="Helvetica" fontsize=11 color="#555555"]
 
-    subgraph cluster_offline {
-        label="Offline — ingestion & training"
-        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
+    // ── offline row ──────────────────────────────────────────────────────────
+    off_label [label="Offline - ingestion & training" shape=plaintext fontsize=12 fontcolor="#888888"]
 
-        smap      [label="NASA SMAP\\nS3 / synthetic fallback"   fillcolor="#dbeafe" color="#93c5fd"]
-        ingest    [label="Ingestion\\nper-channel .npy arrays"    fillcolor="#fef9c3" color="#fcd34d"]
-        features  [label="Feature engineering\\nlag features · 64-step windows" fillcolor="#fef9c3" color="#fcd34d"]
-        training  [label="Training\\nIF · LSTM Autoencoder"       fillcolor="#ede9fe" color="#c4b5fd"]
-        evaluate  [label="Evaluate & select\\nF1 · AUROC · champion" fillcolor="#fed7aa" color="#fb923c"]
+    smap      [label="NASA SMAP\\nS3 / synthetic fallback"        fillcolor="#dbeafe" color="#93c5fd"]
+    ingest    [label="Ingestion\\nper-channel .npy arrays"         fillcolor="#fef9c3" color="#fcd34d"]
+    features  [label="Feature engineering\\nlag features · 64-step windows" fillcolor="#fef9c3" color="#fcd34d"]
+    training  [label="Training\\nIF · LSTM Autoencoder"            fillcolor="#ede9fe" color="#c4b5fd"]
+    evaluate  [label="Evaluate & select\\nF1 · AUROC · champion"  fillcolor="#fed7aa" color="#fb923c"]
 
-        smap -> ingest -> features -> training -> evaluate
-    }
+    { rank=same off_label smap ingest features training evaluate }
+    off_label -> smap     [style=invis]
+    smap -> ingest -> features -> training -> evaluate
 
-    subgraph cluster_online {
-        label="Online — prediction"
-        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
+    // ── online row ───────────────────────────────────────────────────────────
+    on_label  [label="Online - prediction" shape=plaintext fontsize=12 fontcolor="#888888"]
 
-        channel   [label="Channel selector\\n82 SMAP channels"        fillcolor="#fee2e2" color="#fca5a5"]
-        generator [label="AR(1) generator\\nφ=0.85 · σ=0.3"           fillcolor="#dbeafe" color="#93c5fd"]
-        scaler    [label="StandardScaler\\nfitted on training split"   fillcolor="#fef9c3" color="#fcd34d"]
-        inference [label="Model inference\\nIF score · LSTM recon. error" fillcolor="#ede9fe" color="#c4b5fd"]
-        output    [label="Anomaly scores\\nthreshold · plots"          fillcolor="#d1fae5" color="#6ee7b7"]
+    channel   [label="Channel selector\\n82 SMAP channels"             fillcolor="#fee2e2" color="#fca5a5"]
+    generator [label="AR(1) generator\\nφ=0.85 · σ=0.3"               fillcolor="#dbeafe" color="#93c5fd"]
+    scaler    [label="StandardScaler\\nfitted on training split"        fillcolor="#fef9c3" color="#fcd34d"]
+    inference [label="Model inference\\nIF score · LSTM recon. error"  fillcolor="#ede9fe" color="#c4b5fd"]
+    output    [label="Anomaly scores\\nthreshold · plots"              fillcolor="#d1fae5" color="#6ee7b7"]
 
-        channel -> generator -> scaler -> inference -> output
-    }
+    { rank=same on_label channel generator scaler inference output }
+    on_label -> channel   [style=invis]
+    channel -> generator -> scaler -> inference -> output
 
-    // Force left and right edges of both clusters to align
-    { rank=same smap channel }
-    { rank=same evaluate output }
-    smap     -> channel  [style=invis weight=5]
-    evaluate -> output   [style=invis weight=5]
+    // ── force rows to stack ──────────────────────────────────────────────────
+    off_label -> on_label [style=invis]
+    smap      -> channel  [style=invis]
+    evaluate  -> output   [style=invis]
 }
 """, use_container_width=True)
 
@@ -557,7 +555,7 @@ digraph {
             "A 2-layer LSTM encoder compresses each 64-step window into a hidden state; "
             "a symmetric 2-layer LSTM decoder reconstructs the original sequence. "
             "The model is trained to minimise mean squared reconstruction error on normal "
-            "windows only. Anomaly score = mean squared error over the window — "
+            "windows only. Anomaly score = mean squared error over the window -"
             "high error means the model could not reconstruct the local temporal pattern. "
             "The detection threshold is the 95th percentile of training reconstruction errors.",
         ),
