@@ -473,89 +473,51 @@ labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evalu
 
 # ── architecture tab ──────────────────────────────────────────────────────────
 
-_NODE = (
-    "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;"
-    "border-radius:8px;padding:10px 14px;"
-    "text-align:center;font-size:0.78rem;line-height:1.35;border:1px solid rgba(0,0,0,0.08);"
-)
-_ARROW = "font-size:1.3rem;color:#94a3b8;padding:0 2px;align-self:center;flex-shrink:0;"
-_ROW   = "display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;margin:8px 0;width:100%;"
-_PHASE = (
-    "border:1px dashed #94a3b8;border-radius:10px;padding:14px 16px 16px;"
-    "margin-bottom:14px;"
-)
-_LABEL = "font-size:0.7rem;color:#94a3b8;letter-spacing:0.05em;margin-bottom:10px;"
-
-# colour palette — background / border
-_C = {
-    "src":   ("background:#dbeafe;border-color:#93c5fd", "#1d4ed8"),   # blue   — data source
-    "proc":  ("background:#fef9c3;border-color:#fde047", "#854d0e"),   # yellow — processing
-    "model": ("background:#ede9fe;border-color:#c4b5fd", "#5b21b6"),   # purple — model
-    "eval":  ("background:#fed7aa;border-color:#fdba74", "#9a3412"),   # orange — evaluation
-    "out":   ("background:#d1fae5;border-color:#6ee7b7", "#065f46"),   # green  — output
-    "user":  ("background:#fce7f3;border-color:#f9a8d4", "#9d174d"),   # pink   — user/query
-}
-
-def _node(label: str, sub: str, kind: str) -> str:
-    bg, fg = _C[kind]
-    return (
-        f"<div style='{_NODE}{bg}'>"
-        f"<b style='color:{fg}'>{label}</b>"
-        f"<span style='color:#64748b;font-size:0.72rem;margin-top:3px'>{sub}</span>"
-        f"</div>"
-    )
-
-def _arr() -> str:
-    return f"<span style='{_ARROW}'>→</span>"
-
 with tab_arch:
     st.subheader("System Architecture")
-    st.markdown(
+    st.caption(
         "SensorFlow is split into two phases: an offline training pipeline that builds and "
         "evaluates models, and an online inference pipeline that scores telemetry channels in real time."
     )
 
-    # ── diagram ───────────────────────────────────────────────────────────────
+    st.graphviz_chart("""
+digraph {
+    rankdir=LR
+    graph [fontname="Helvetica" bgcolor="transparent" pad="0.6" nodesep="0.6" ranksep="1.1"]
+    node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2]
+    edge  [fontname="Helvetica" fontsize=11 color="#555555"]
 
-    offline_html = (
-        f"<div style='{_PHASE}'>"
-        f"<div style='{_LABEL}'>OFFLINE — ingestion &amp; training</div>"
-        f"<div style='{_ROW}'>"
-        + _node("NASA SMAP", "S3 / synthetic fallback", "src")
-        + _arr()
-        + _node("Ingestion", "per-channel .npy arrays", "proc")
-        + _arr()
-        + _node("Feature engineering", "lag features · 64-step windows", "proc")
-        + _arr()
-        + _node("Training", "Isolation Forest · LSTM Autoencoder", "model")
-        + _arr()
-        + _node("Evaluate &amp; select", "F1 · AUROC · champion", "eval")
-        + "</div></div>"
-    )
+    subgraph cluster_offline {
+        label="Offline — ingestion & training"
+        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
 
-    online_html = (
-        f"<div style='{_PHASE}'>"
-        f"<div style='{_LABEL}'>ONLINE — prediction</div>"
-        f"<div style='{_ROW}'>"
-        + _node("Channel selector", "82 SMAP channels", "user")
-        + _arr()
-        + _node("AR(1) generator", "φ=0.85 · σ=0.3 · anomaly injection", "src")
-        + _arr()
-        + _node("StandardScaler", "fitted on training split", "proc")
-        + _arr()
-        + _node("Model inference", "IF score · LSTM recon. error", "model")
-        + _arr()
-        + _node("Anomaly scores", "threshold · score plot · signal plot", "out")
-        + "</div></div>"
-    )
+        smap      [label="NASA SMAP\\nS3 / synthetic fallback"   fillcolor="#dbeafe" color="#93c5fd"]
+        ingest    [label="Ingestion\\nper-channel .npy arrays"    fillcolor="#fef9c3" color="#fcd34d"]
+        features  [label="Feature engineering\\nlag features · 64-step windows" fillcolor="#fef9c3" color="#fcd34d"]
+        training  [label="Training\\nIF · LSTM Autoencoder"       fillcolor="#ede9fe" color="#c4b5fd"]
+        evaluate  [label="Evaluate & select\\nF1 · AUROC · champion" fillcolor="#fed7aa" color="#fb923c"]
 
-    st.markdown(offline_html + online_html, unsafe_allow_html=True)
+        smap -> ingest -> features -> training -> evaluate
+    }
+
+    subgraph cluster_online {
+        label="Online — prediction"
+        style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
+
+        channel   [label="Channel selector\\n82 SMAP channels"        fillcolor="#fee2e2" color="#fca5a5"]
+        generator [label="AR(1) generator\\nφ=0.85 · σ=0.3"           fillcolor="#dbeafe" color="#93c5fd"]
+        scaler    [label="StandardScaler\\nfitted on training split"   fillcolor="#fef9c3" color="#fcd34d"]
+        inference [label="Model inference\\nIF score · LSTM recon. error" fillcolor="#ede9fe" color="#c4b5fd"]
+        output    [label="Anomaly scores\\nthreshold · plots"          fillcolor="#d1fae5" color="#6ee7b7"]
+
+        channel -> generator -> scaler -> inference -> output
+    }
+}
+""", use_container_width=True)
 
     st.divider()
 
-    # ── component cards (full-width, stacked) ─────────────────────────────────
-
-    st.markdown("##### Components")
+    st.markdown("### Components")
 
     for title, body in [
         (
@@ -620,4 +582,4 @@ with tab_arch:
     ]:
         with st.container(border=True):
             st.markdown(f"**{title}**")
-            st.markdown(body)
+            st.caption(body)
