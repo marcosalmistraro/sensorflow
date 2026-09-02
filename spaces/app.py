@@ -295,9 +295,6 @@ with st.sidebar:
             st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
     else:
         st.error("No model found in models/")
-    st.divider()
-    st.markdown("**About**")
-    st.caption("Anomaly detection pipeline for NASA SMAP satellite telemetry — ingestion, training, evaluation, and drift monitoring.")
 
 # ── page header (always visible) ─────────────────────────────────────────────
 
