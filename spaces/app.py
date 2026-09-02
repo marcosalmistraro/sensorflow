@@ -432,21 +432,20 @@ with tab_analysis:
 # ── data source tab ───────────────────────────────────────────────────────────
 
 with tab_datasource:
-    st.subheader("Dataset: NASA SMAP Telemetry")
+    st.subheader("Dataset: *NASA SMAP Telemetry*")
+    st.markdown(
+        "**SMAP** (Soil Moisture Active Passive) is a NASA satellite that monitors Earth's soil moisture. "
+        "Its onboard telemetry system continuously records sensor readings across multiple channels, "
+        "each representing a different subsystem or instrument group.\n\n"
+        "The dataset was published by Hundman et al. (2018) alongside the "
+        "[telemanom](https://github.com/khundman/telemanom) anomaly detection framework. "
+        "It contains **82 labeled channels** for the SMAP spacecraft, with ground-truth anomaly "
+        "intervals manually annotated by NASA engineers."
+    )
+
+    st.divider()
+    st.subheader("Structure")
     st.markdown("""
-**SMAP** (Soil Moisture Active Passive) is a NASA satellite that monitors Earth's soil moisture.
-Its onboard telemetry system continuously records sensor readings across multiple channels,
-each representing a different subsystem or instrument group.
-
-The dataset was published by Hundman et al. (2018) alongside the
-[telemanom](https://github.com/khundman/telemanom) anomaly detection framework.
-It contains **82 labeled channels** for the SMAP spacecraft, with ground-truth anomaly
-intervals manually annotated by NASA engineers.
-
----
-
-**Structure**
-
 | Field | Description |
 |---|---|
 | Channel ID | Unique identifier per telemetry channel (e.g. `P-1`, `S-1`) |
@@ -454,30 +453,31 @@ intervals manually annotated by NASA engineers.
 | Train split | Normal operating data only |
 | Test split | Mix of normal and anomalous periods |
 | Labels | `[start, end]` index pairs marking anomalous intervals |
+""")
 
----
+    st.divider()
+    st.subheader("Synthetic data note")
+    st.markdown(
+        "The original `.npy` channel files are no longer publicly accessible. "
+        "This deployment uses **synthetic data** generated to match the real dataset's structure:\n\n"
+        "- Channel IDs and anomaly label locations are real (from `labeled_anomalies.csv`)\n"
+        "- Feature values are **AR(1) autoregressive** (φ=0.85, σ=0.3)\n"
+        "- Anomalies injected at labeled locations by shifting ~⅓ of features by ±3σ"
+    )
 
-**Synthetic data note**
-
-The original `.npy` channel files are no longer publicly accessible.
-This deployment uses **synthetic data** generated to match the real dataset's structure:
-
-- Channel IDs and anomaly label locations are real (from `labeled_anomalies.csv`)
-- Feature values are **AR(1) autoregressive** (φ=0.85, σ=0.3)
-- Anomalies injected at labeled locations by shifting ~⅓ of features by ±3σ
-
----
-
-**Pipeline**
-
+    st.divider()
+    st.subheader("Pipeline")
+    st.markdown("""
 ```
 labeled_anomalies.csv → ingestion → features → train (IF + LSTM) → evaluate → monitor → serve
 ```
+""")
 
----
-
-**Reference:** Hundman et al., *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*, KDD 2018.
-    """)
+    st.divider()
+    st.subheader("Reference")
+    st.markdown(
+        "Hundman et al., *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*, KDD 2018."
+    )
 
 # ── architecture tab ──────────────────────────────────────────────────────────
 
