@@ -484,11 +484,11 @@ with tab_arch:
 digraph {
     rankdir=TB
     graph [fontname="Helvetica" bgcolor="transparent" pad="0.5" nodesep="0.4" ranksep="0.8"]
-    node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2.2]
+    node  [fontname="Helvetica" fontsize=13 shape=box style="rounded,filled" margin="0.3,0.2" width=2.4 fixedsize=true]
     edge  [fontname="Helvetica" fontsize=11 color="#555555"]
 
     subgraph cluster_offline {
-        label="Offline - ingestion & training"
+        label="Offline"
         style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
 
         smap      [label="NASA SMAP\\nS3 / synthetic fallback"        fillcolor="#dbeafe" color="#93c5fd"]
@@ -502,7 +502,7 @@ digraph {
     }
 
     subgraph cluster_online {
-        label="Online - prediction"
+        label="Online"
         style=dashed color="#aaaaaa" fontcolor="#444444" fontsize=14
 
         channel   [label="Channel selector\\n82 SMAP channels"             fillcolor="#fee2e2" color="#fca5a5"]
