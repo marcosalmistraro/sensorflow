@@ -287,25 +287,26 @@ champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoenco
 with st.sidebar:
     with st.expander("What is this?"):
         st.markdown(
-            "- A tool that watches satellite sensor data and flags anything unusual\n"
-            "- Built on real NASA data from the SMAP spacecraft\n"
-            "- Two AI models run side by side and the better one is picked automatically\n"
-            "- Everything runs in the browser - no setup needed"
+            "- A tool that watches NASA satellite sensor data and flags anything unusual\n"
+            "- SMAP is a NASA satellite with 82 onboard sensor channels, each recording 25 measurements per timestep\n"
+            "- Two AI models are trained on the historical sensor readings and compared automatically\n"
+            "- The better model is selected and used for predictions"
         )
     with st.expander("What does it do?"):
         st.markdown(
-            "- Reads a sensor channel and highlights the moments that look abnormal\n"
-            "- Tracks how well each model performs and keeps the most accurate one\n"
-            "- Checks whether the data the model was trained on still matches what it sees now\n"
-            "- Raises a flag if the gap gets large enough to warrant retraining"
+            "- Picks a sensor channel and highlights the time windows that look abnormal\n"
+            "- Anomalies are moments where the sensor readings deviate from the pattern the model learned\n"
+            "- Tracks whether the sensor data distribution has shifted since training\n"
+            "- Raises a flag if the shift is large enough to suggest the model needs retraining"
         )
     with st.expander("What can I explore?"):
         st.markdown(
-            "- Pick any satellite channel and see where anomalies were detected\n"
-            "- Compare both models on accuracy, precision, and recall\n"
-            "- See which sensor readings have drifted the most over time\n"
+            "- Pick any of the 82 SMAP channels and see where anomalies were detected\n"
+            "- Compare both models on accuracy, precision, and recall against NASA ground-truth labels\n"
+            "- See which of the 25 sensor readings have drifted the most\n"
             "- Read how the system is built end to end"
         )
+    st.divider()
     with st.expander("Best-performing model"):
         if models:
             best_label = champion_label if champion_label in models else next(iter(models))
