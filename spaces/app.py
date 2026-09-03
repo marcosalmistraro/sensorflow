@@ -460,8 +460,14 @@ with tab_datasource:
         "each representing a different subsystem or instrument group.\n\n"
         "The dataset was published by Hundman et al. (2018) alongside the "
         "[telemanom](https://github.com/khundman/telemanom) anomaly detection framework. "
-        "It contains **82 labeled channels** for the SMAP spacecraft, with ground-truth anomaly "
-        "intervals manually annotated by NASA engineers."
+        "It contains **82 labeled channels** for the SMAP spacecraft, with anomaly intervals "
+        "manually annotated by NASA engineers.\n\n"
+        "The original raw sensor files are no longer publicly accessible, so this deployment uses synthetic data "
+        "that reproduces the same structure. The NASA annotations are used only during data generation "
+        "to inject realistic anomalies at the right locations. When you run a prediction, the models score "
+        "purely from what they learned during training - no ground-truth labels are used at that point. "
+        "The accuracy numbers in the Evaluate tab were computed offline against those annotations "
+        "and stored as a pre-computed report."
     )
 
     st.divider()
@@ -479,10 +485,8 @@ with tab_datasource:
     st.divider()
     st.subheader("Synthetic data note")
     st.markdown(
-        "The original `.npy` channel files are no longer publicly accessible. "
-        "This deployment uses **synthetic data** generated to match the real dataset's structure:\n\n"
         "- Channel IDs and anomaly label locations are real (from `labeled_anomalies.csv`)\n"
-        "- Feature values are **AR(1) autoregressive** (φ=0.85, σ=0.3)\n"
+        "- Feature values are AR(1) autoregressive (φ=0.85, σ=0.3)\n"
         "- Anomalies injected at labeled locations by shifting ~⅓ of features by ±3σ"
     )
 
