@@ -287,24 +287,24 @@ champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoenco
 with st.sidebar:
     with st.expander("What is this?"):
         st.markdown(
-            "- Anomaly detection system for NASA SMAP satellite telemetry\n"
-            "- Covers 82 labeled channels from the SMAP spacecraft\n"
-            "- Runs on synthetic AR(1) data matching the real dataset structure\n"
-            "- Models loaded from disk - no external API needed"
+            "- A tool that watches satellite sensor data and flags anything unusual\n"
+            "- Built on real NASA data from the SMAP spacecraft\n"
+            "- Two AI models run side by side and the better one is picked automatically\n"
+            "- Everything runs in the browser - no setup needed"
         )
     with st.expander("What does it do?"):
         st.markdown(
-            "- Scores telemetry channels for anomalies using two ML models\n"
-            "- Compares LSTM Autoencoder and Isolation Forest on held-out test data\n"
-            "- Monitors feature drift between training and test distributions\n"
-            "- Selects the best-performing model automatically by F1"
+            "- Reads a sensor channel and highlights the moments that look abnormal\n"
+            "- Tracks how well each model performs and keeps the most accurate one\n"
+            "- Checks whether the data the model was trained on still matches what it sees now\n"
+            "- Raises a flag if the gap gets large enough to warrant retraining"
         )
     with st.expander("What can I explore?"):
         st.markdown(
-            "- Predict anomalies on any SMAP channel\n"
-            "- Review per-model evaluation metrics\n"
-            "- Inspect drift statistics and KS test results per feature\n"
-            "- Browse the system architecture and data sources"
+            "- Pick any satellite channel and see where anomalies were detected\n"
+            "- Compare both models on accuracy, precision, and recall\n"
+            "- See which sensor readings have drifted the most over time\n"
+            "- Read how the system is built end to end"
         )
     with st.expander("Best-performing model"):
         if models:
