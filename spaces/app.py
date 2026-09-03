@@ -285,16 +285,36 @@ champion_key = eval_data.get("champion", "") if eval_data else ""
 champion_label = {"isolation_forest": "Isolation Forest", "lstm": "LSTM Autoencoder"}.get(champion_key, "")
 
 with st.sidebar:
-    st.markdown("**Best-performing model**")
-    st.caption("Champion selected by highest F1 on the SMAP test set -loaded by default in Predict.")
-    if models:
-        best_label = champion_label if champion_label in models else next(iter(models))
-        best = models[best_label]
-        with st.container(border=True):
-            st.markdown(best_label)
+    with st.expander("What is this?"):
+        st.markdown(
+            "- Anomaly detection system for NASA SMAP satellite telemetry\n"
+            "- Covers 82 labeled channels from the SMAP spacecraft\n"
+            "- Runs on synthetic AR(1) data matching the real dataset structure\n"
+            "- Models loaded from disk - no external API needed"
+        )
+    with st.expander("What does it do?"):
+        st.markdown(
+            "- Scores telemetry channels for anomalies using two ML models\n"
+            "- Compares LSTM Autoencoder and Isolation Forest on held-out test data\n"
+            "- Monitors feature drift between training and test distributions\n"
+            "- Selects the best-performing model automatically by F1"
+        )
+    with st.expander("What can I explore?"):
+        st.markdown(
+            "- Predict anomalies on any SMAP channel\n"
+            "- Review per-model evaluation metrics\n"
+            "- Inspect drift statistics and KS test results per feature\n"
+            "- Browse the system architecture and data sources"
+        )
+    with st.expander("Best-performing model"):
+        if models:
+            best_label = champion_label if champion_label in models else next(iter(models))
+            best = models[best_label]
+            st.markdown(f"**{best_label}**")
             st.markdown(f"Anomaly threshold: `{best.threshold:.4f}`")
-    else:
-        st.error("No model found in models/")
+            st.caption("Champion selected by highest F1 on the SMAP test set - loaded by default in Predict.")
+        else:
+            st.error("No model found in models/")
 
 # ── page header (always visible) ─────────────────────────────────────────────
 
