@@ -468,7 +468,7 @@ with tab_datasource:
         "purely from what they learned during training: no ground-truth labels are used at that point. "
         "The accuracy numbers in the Evaluate tab were computed offline against those annotations "
         "and stored as a pre-computed report.\n\n"
-        "From the NASA annotations, only the **anomaly locations** are used - the `[start, end]` index pairs "
+        "From the NASA annotations, only the **anomaly locations** are used: the `[start, end]` index pairs "
         "that mark where each anomalous interval falls in a channel. The actual measured sensor values "
         "from the real satellite are not available and are not used anywhere. "
         "Normal periods in the synthetic data are generated without any reference to the original recordings."
