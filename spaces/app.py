@@ -222,7 +222,7 @@ def score_plot(timesteps, scores, flags, threshold, chan_id):
     y_max = max(float(scores.max()) if len(scores) else 1.0, threshold)
     fig.add_hline(y=threshold, line_dash="dash", line_color=THRESHOLD_COLOR,
                   annotation_text=f"threshold={threshold:.4f}", annotation_position="top right")
-    fig.update_layout(title=f"Anomaly scores -{chan_id}", xaxis_title="Timestep",
+    fig.update_layout(title=f"Anomaly scores - {chan_id}", xaxis_title="Timestep",
                       yaxis_title="Score", yaxis=dict(range=[0, y_max * 1.1]),
                       height=380, margin=dict(l=40, r=20, t=60, b=40))
     return fig
@@ -249,7 +249,7 @@ def signal_plot(readings, timesteps, flags, chan_id):
         for s, e in spans:
             fig.add_shape(type="rect", x0=s, x1=e, y0=y_min, y1=y_max,
                           fillcolor=ANOMALY_COLOR, opacity=0.15, line_width=0, layer="below")
-    fig.update_layout(title=f"Raw signal -{chan_id}", xaxis_title="Timestep",
+    fig.update_layout(title=f"Raw signal - {chan_id}", xaxis_title="Timestep",
                       yaxis_title="Value", height=300, margin=dict(l=40, r=20, t=60, b=40))
     return fig
 
@@ -333,7 +333,7 @@ with tab_predict:
     if "result" in st.session_state:
         chan_id_r, readings_r, timesteps_r, scores_r, flags_r, threshold_r = st.session_state["result"]
         n_anom = int(flags_r.sum())
-        st.subheader(f"Channel {chan_id_r} -{n_anom} anomalies in {len(scores_r)} scored windows")
+        st.subheader(f"Channel {chan_id_r} - {n_anom} anomalies in {len(scores_r)} scored windows")
         st.plotly_chart(score_plot(timesteps_r, scores_r, flags_r, threshold_r, chan_id_r),
                         use_container_width=True)
         st.plotly_chart(signal_plot(readings_r, timesteps_r, flags_r, chan_id_r),
